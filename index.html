@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#4f46e5">
+  <meta name="description" content="CampusConnect - a modern student campus dashboard.">
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="CampusConnect">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="icon" type="image/svg+xml" href="icon.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
+  <link rel="stylesheet" href="style.css">
+  <title>CampusConnect</title>
+</head>
+<body>
+  <noscript>CampusConnect needs JavaScript enabled to run.</noscript>
+  <div class="bg-scene" id="bgScene" aria-hidden="true">
+    <div class="bg-layer scene-aurora"><span class="blob b1"></span><span class="blob b2"></span><span class="blob b3"></span><span class="blob b4"></span><span class="aurora-grid"></span></div>
+    <div class="bg-layer scene-campus">
+      <div class="stars" id="starLayer"></div>
+      <div class="celestial"><span></span></div>
+      <svg class="cloud c1" viewBox="0 0 200 80"><g><ellipse cx="60" cy="50" rx="50" ry="26"/><ellipse cx="110" cy="38" rx="48" ry="30"/><ellipse cx="152" cy="52" rx="42" ry="22"/></g></svg>
+      <svg class="cloud c2" viewBox="0 0 200 80"><g><ellipse cx="60" cy="50" rx="50" ry="26"/><ellipse cx="110" cy="38" rx="48" ry="30"/><ellipse cx="152" cy="52" rx="42" ry="22"/></g></svg>
+      <svg class="cloud c3" viewBox="0 0 200 80"><g><ellipse cx="60" cy="50" rx="50" ry="26"/><ellipse cx="110" cy="38" rx="48" ry="30"/><ellipse cx="152" cy="52" rx="42" ry="22"/></g></svg>
+      <svg class="bird b1" viewBox="0 0 24 10"><path d="M1 8Q6 0 12 6Q18 0 23 8"/></svg>
+      <svg class="bird b2" viewBox="0 0 24 10"><path d="M1 8Q6 0 12 6Q18 0 23 8"/></svg>
+      <svg class="bird b3" viewBox="0 0 24 10"><path d="M1 8Q6 0 12 6Q18 0 23 8"/></svg>
+      <svg class="skyline" viewBox="0 0 1440 360" preserveAspectRatio="xMidYMax slice" xmlns="http://www.w3.org/2000/svg">
+      <path class="sk-far" d="M0 250C160 190 300 230 460 205C640 175 760 235 940 210C1100 188 1260 230 1440 195L1440 360L0 360Z"/>
+      <path class="sk-mid" d="M0 285C200 240 360 285 560 262C760 238 900 290 1100 268C1250 252 1360 270 1440 258L1440 360L0 360Z"/>
+      <g class="sk-building">
+        <rect x="380" y="262" width="170" height="58"/><rect x="372" y="256" width="186" height="8"/>
+        <rect x="890" y="262" width="170" height="58"/><rect x="882" y="256" width="186" height="8"/>
+        <rect x="540" y="232" width="360" height="88"/>
+        <path d="M518 234L720 172L922 234Z"/>
+        <rect x="696" y="118" width="48" height="60"/><path d="M690 120L720 80L750 120Z"/>
+        <circle class="sk-clock" cx="720" cy="146" r="13"/>
+        <path class="sk-hand" d="M720 146V138M720 146L726 149"/>
+        <rect class="sk-column" x="566" y="244" width="14" height="76"/><rect class="sk-column" x="620" y="244" width="14" height="76"/><rect class="sk-column" x="674" y="244" width="14" height="76"/><rect class="sk-column" x="728" y="244" width="14" height="76"/><rect class="sk-column" x="782" y="244" width="14" height="76"/><rect class="sk-column" x="836" y="244" width="14" height="76"/><rect class="sk-window" x="590" y="214" width="12" height="16" rx="2"/><rect class="sk-window" x="640" y="214" width="12" height="16" rx="2"/><rect class="sk-window" x="690" y="214" width="12" height="16" rx="2"/><rect class="sk-window" x="745" y="214" width="12" height="16" rx="2"/><rect class="sk-window" x="795" y="214" width="12" height="16" rx="2"/><rect class="sk-window" x="845" y="214" width="12" height="16" rx="2"/><rect class="sk-window" x="402" y="274" width="14" height="20" rx="2"/><rect class="sk-window" x="430" y="274" width="14" height="20" rx="2"/><rect class="sk-window" x="458" y="274" width="14" height="20" rx="2"/><rect class="sk-window" x="486" y="274" width="14" height="20" rx="2"/><rect class="sk-window" x="952" y="274" width="14" height="20" rx="2"/><rect class="sk-window" x="980" y="274" width="14" height="20" rx="2"/><rect class="sk-window" x="1008" y="274" width="14" height="20" rx="2"/><rect class="sk-window" x="1036" y="274" width="14" height="20" rx="2"/>
+        <rect class="sk-step" x="556" y="318" width="328" height="8"/>
+      </g>
+      <g class="sk-tree"><rect x="297" y="292" width="6" height="22"/><circle cx="300" cy="286" r="18"/><circle cx="290" cy="296" r="13"/><circle cx="310" cy="296" r="13"/></g><g class="sk-tree"><rect x="333" y="298" width="6" height="22"/><circle cx="336" cy="292" r="14"/><circle cx="328" cy="302" r="10"/><circle cx="344" cy="302" r="10"/></g><g class="sk-tree"><rect x="1107" y="292" width="6" height="22"/><circle cx="1110" cy="286" r="18"/><circle cx="1100" cy="296" r="13"/><circle cx="1120" cy="296" r="13"/></g><g class="sk-tree"><rect x="1147" y="298" width="6" height="22"/><circle cx="1150" cy="292" r="14"/><circle cx="1142" cy="302" r="10"/><circle cx="1158" cy="302" r="10"/></g><g class="sk-tree"><rect x="207" y="300" width="6" height="22"/><circle cx="210" cy="294" r="16"/><circle cx="201" cy="304" r="11"/><circle cx="219" cy="304" r="11"/></g><g class="sk-tree"><rect x="1237" y="300" width="6" height="22"/><circle cx="1240" cy="294" r="16"/><circle cx="1231" cy="304" r="11"/><circle cx="1249" cy="304" r="11"/></g>
+      <path class="sk-ground" d="M0 332C300 314 600 338 900 324C1150 313 1300 332 1440 320L1440 360L0 360Z"/>
+    </svg>
+    </div>
+    <div class="bg-layer scene-doodles" id="doodleLayer"></div>
+  </div>
+
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar">
+      <div class="brand"><div class="brand-mark"><i class="fa-solid fa-graduation-cap"></i></div><div><strong>CampusConnect</strong><span>Student Hub</span></div></div>
+      <div class="sidebar-profile"><div class="avatar" id="sidebarAvatar">ST</div><div><strong id="sidebarUserName">Student</strong><span id="sidebarUserCourse">BSc Computer Science</span></div></div>
+      <nav class="nav-list">
+        <button class="nav-item active" data-page="dashboard"><i class="fa-solid fa-table-cells-large"></i><span>Dashboard</span></button>
+        <button class="nav-item" data-page="courses"><i class="fa-solid fa-book"></i><span>Courses</span><b id="activeCourses">4</b></button>
+        <button class="nav-item" data-page="assignments"><i class="fa-solid fa-list-check"></i><span>Assignments</span><b id="assignmentBadge">0</b></button>
+        <button class="nav-item" data-page="schedule"><i class="fa-solid fa-calendar-days"></i><span>Schedule</span></button>
+        <button class="nav-item" data-page="campus"><i class="fa-solid fa-building-columns"></i><span>Campus Life</span></button>
+        <button class="nav-item" data-page="announcements"><i class="fa-solid fa-bullhorn"></i><span>Announcements</span></button>
+        <button class="nav-item" data-page="groups"><i class="fa-solid fa-users"></i><span>Study Groups</span></button>
+        <button class="nav-item" data-page="progress"><i class="fa-solid fa-chart-line"></i><span>Academic Progress</span></button>
+        <button class="nav-item" data-page="notes"><i class="fa-solid fa-note-sticky"></i><span>Notes</span></button>
+        <button class="nav-item" data-page="grades"><i class="fa-solid fa-award"></i><span>Grades &amp; GPA</span></button>
+        <button class="nav-item" data-page="notifications"><i class="fa-solid fa-bell"></i><span>Notifications</span><b id="notificationBadge">0</b></button>
+        <button class="nav-item" data-page="settings"><i class="fa-solid fa-sliders"></i><span>Settings</span></button>
+        <button class="nav-item" data-page="profile"><i class="fa-solid fa-user"></i><span>Profile</span></button>
+      </nav>
+      <div class="sidebar-bottom">
+        <div class="cloud-status" id="firebaseStatus"><i class="fa-solid fa-cloud"></i><span>Not signed in</span></div>
+        <button class="nav-item install hidden" id="installBtn"><i class="fa-solid fa-download"></i><span>Install app</span></button>
+        <button class="nav-item" id="themeToggle"><i class="fa-solid fa-moon"></i><span>Dark mode</span></button>
+        <button class="nav-item danger" id="logoutBtn"><i class="fa-solid fa-right-from-bracket"></i><span>Log out</span></button>
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <header class="topbar">
+        <button class="icon-btn mobile-only" id="menuBtn" aria-label="Open menu"><i class="fa-solid fa-bars"></i></button>
+        <div class="topbar-title"><span>Student workspace</span><h1 id="pageTitle">Dashboard</h1></div>
+        <div class="topbar-actions">
+          <span class="net-pill hidden" id="netStatus" role="status"><i class="fa-solid fa-cloud-slash"></i> Offline</span>
+          <button class="search-trigger" id="searchBtn" aria-label="Search (Ctrl K)"><i class="fa-solid fa-magnifying-glass"></i><span>Search</span><kbd>Ctrl K</kbd></button>
+          <button class="icon-btn back-btn" id="backBtn" aria-label="Go back" title="Go back"><i class="fa-solid fa-arrow-left"></i><span class="back-label">Back</span></button>
+          <button class="icon-btn" id="notificationBtn" aria-label="Notifications"><i class="fa-regular fa-bell"></i><span class="dot" id="notificationDot"></span></button>
+          <button class="avatar small" id="headerAvatar" aria-label="Open profile" data-page-target="profile">ST</button>
+        </div>
+      </header>
+
+      <section class="page active" id="dashboardPage">
+        <div class="dash-hero">
+          <div class="dash-hero-text">
+            <p class="eyebrow">YOUR CAMPUS, IN ONE PLACE</p>
+            <h2 id="heroGreeting"><span id="heroGreetingText">Good day</span>, <span id="dashboardUserName">Student</span> 👋</h2>
+            <p id="heroSummary">Here's your day at a glance.</p>
+            <span class="date-pill"><i class="fa-regular fa-calendar"></i><span id="todayDate"></span></span>
+            <div class="dash-hero-actions">
+              <button type="button" class="hero-btn primary" data-dash-action="add-assignment"><i class="fa-solid fa-plus"></i> Assignment</button>
+              <button type="button" class="hero-btn" data-dash-action="add-class"><i class="fa-solid fa-plus"></i> Class</button>
+              <button type="button" class="hero-btn" data-dash-action="focus"><i class="fa-solid fa-play"></i> Start focus</button>
+            </div>
+          </div>
+          <div class="dash-hero-ring" id="heroRing" aria-label="Task completion"><div><strong id="heroRingValue">0%</strong><span>tasks done</span></div></div>
+        </div>
+
+        <div class="kpi-grid">
+          <button type="button" class="kpi" data-page-target="courses"><span class="kpi-icon purple"><i class="fa-solid fa-book-open"></i></span><span class="kpi-body"><small>Active courses</small><strong id="activeCoursesDash">0</strong><em id="kpiCoursesSub">0 credits</em></span></button>
+          <button type="button" class="kpi" data-page-target="assignments"><span class="kpi-icon orange"><i class="fa-solid fa-clock"></i></span><span class="kpi-body"><small>Pending tasks</small><strong id="pendingAssignments">0</strong><em id="kpiPendingSub">Nothing urgent</em></span></button>
+          <button type="button" class="kpi" data-page-target="progress"><span class="kpi-icon green"><i class="fa-solid fa-circle-check"></i></span><span class="kpi-body"><small>Tasks completed</small><strong id="statCompletion">—</strong><em id="kpiDoneSub">No tasks yet</em></span></button>
+          <button type="button" class="kpi" data-dash-action="focus"><span class="kpi-icon blue"><i class="fa-solid fa-hourglass-half"></i></span><span class="kpi-body"><small>Focus today</small><strong id="kpiFocus">0m</strong><em id="kpiFocusSub">Start a session</em></span></button>
+        </div>
+
+        <div class="dash-layout">
+          <div class="dash-main">
+            <div class="panel today-panel"><div class="panel-head"><div><p class="eyebrow">TODAY</p><h3>Today at a glance</h3></div><button type="button" class="text-btn" data-page-target="campus">Campus Life</button></div><div id="todayAgenda"></div></div>
+
+            <div class="panel"><div class="panel-head"><div><p class="eyebrow">UP NEXT</p><h3>Pending assignments</h3></div><button type="button" class="text-btn" data-page-target="assignments">View all</button></div><div id="dashboardAssignments" class="mini-list"></div></div>
+
+            <div class="dash-split">
+              <div class="panel"><div class="panel-head"><div><p class="eyebrow">WORKLOAD</p><h3>Next 7 days</h3></div><button type="button" class="text-btn" data-page-target="assignments">Manage</button></div><div id="workloadChart" class="workload"></div></div>
+              <div class="panel"><div class="panel-head"><div><p class="eyebrow">COMING UP</p><h3>Class schedule</h3></div><button type="button" class="text-btn" data-page-target="schedule">Full schedule</button></div><div class="schedule-list" id="dashboardSchedule"></div></div>
+            </div>
+
+            <div class="panel"><div class="panel-head"><div><p class="eyebrow">COURSES</p><h3>Progress by course</h3></div><button type="button" class="text-btn" data-page-target="progress">View progress</button></div><div id="courseProgressList" class="course-progress-list"></div></div>
+          </div>
+
+          <aside class="dash-aside">
+            <div class="panel focus-timer" id="focusTimerPanel">
+              <div class="panel-head"><div><p class="eyebrow">STUDY FOCUS</p><h3>Focus timer</h3></div></div>
+              <div class="timer-modes" role="tablist" aria-label="Timer mode">
+                <button type="button" class="timer-mode active" data-timer-mode="focus">Focus 25</button>
+                <button type="button" class="timer-mode" data-timer-mode="short">Break 5</button>
+                <button type="button" class="timer-mode" data-timer-mode="long">Long 15</button>
+              </div>
+              <div class="timer-display" id="timerDisplay" role="timer" aria-live="off">25:00</div>
+              <div class="timer-track"><span id="timerBar" style="width:0%"></span></div>
+              <div class="timer-controls">
+                <button type="button" class="btn primary" id="timerToggle"><i class="fa-solid fa-play"></i> <span>Start</span></button>
+                <button type="button" class="btn secondary" id="timerReset"><i class="fa-solid fa-rotate-left"></i> Reset</button>
+              </div>
+              <div class="timer-stats">
+                <div><strong id="focusToday">0m</strong><small>Today</small></div>
+                <div><strong id="focusStreak">0</strong><small>Day streak</small></div>
+                <div><strong id="focusWeek">0m</strong><small>This week</small></div>
+              </div>
+              <div class="goal-line"><span id="focusGoalLabel">0 / 150 min weekly goal</span><div class="timer-track slim"><span id="focusGoalBar" style="width:0%"></span></div></div>
+            </div>
+
+            <div class="panel mini-calendar-panel">
+              <div class="panel-head"><div><p class="eyebrow">CALENDAR</p><h3 id="calTitle">Month</h3></div><div class="cal-nav"><button type="button" class="icon-btn small" data-cal="prev" aria-label="Previous month"><i class="fa-solid fa-chevron-left"></i></button><button type="button" class="text-btn" data-cal="today">Today</button><button type="button" class="icon-btn small" data-cal="next" aria-label="Next month"><i class="fa-solid fa-chevron-right"></i></button></div></div>
+              <div id="miniCalendar" class="mini-calendar"></div>
+              <div class="cal-legend"><span><i class="cal-dot due"></i> Deadline</span><span><i class="cal-dot class"></i> Class</span></div>
+              <div id="calDetail" class="cal-detail"></div>
+            </div>
+
+            <div class="panel todo-panel">
+              <div class="panel-head"><div><p class="eyebrow">QUICK NOTES</p><h3>To-do list</h3></div><button type="button" class="text-btn" id="todoClear">Clear done</button></div>
+              <form id="todoForm" class="todo-form"><input id="todoInput" maxlength="120" placeholder="Add a quick task…" aria-label="New to-do" autocomplete="off"><button type="submit" class="btn primary" aria-label="Add to-do"><i class="fa-solid fa-plus"></i></button></form>
+              <ul id="todoList" class="todo-list"></ul>
+              <p class="todo-count" id="todoCount"></p>
+            </div>
+
+            <div class="panel announcement-strip dash-announce"><div class="announcement-icon"><i class="fa-solid fa-bullhorn"></i></div><div><p class="eyebrow">LATEST ANNOUNCEMENT</p><h3>Course registration window is now open</h3><p>Review your academic plan and confirm your semester courses before the deadline.</p><button type="button" class="text-btn" data-page-target="announcements">Read more</button></div></div>
+          </aside>
+        </div>
+      </section>
+
+      <section class="page" id="coursesPage">
+        <div class="page-heading"><div><p class="eyebrow">ACADEMIC PLAN</p><h2>My Courses</h2><p>Manage your active courses and keep your semester organized.</p></div><button class="btn primary" id="addCourseBtn"><i class="fa-solid fa-plus"></i> Add Course</button></div>
+        <div class="course-grid" id="courseGrid"></div>
+      </section>
+
+      <section class="page" id="assignmentsPage">
+        <div class="page-heading"><div><p class="eyebrow">WORK TO COMPLETE</p><h2>Assignments</h2><p>Track deadlines and mark work complete.</p></div><button class="btn primary" id="addAssignmentBtn"><i class="fa-solid fa-plus"></i> Add Assignment</button></div>
+        <div class="toolbar"><div class="search-box"><i class="fa-solid fa-magnifying-glass"></i><input id="assignmentSearch" type="search" placeholder="Search assignments..." aria-label="Search assignments"></div><select id="assignmentFilter" aria-label="Filter assignments"><option value="all">All assignments</option><option value="pending">Pending</option><option value="completed">Completed</option><option value="high">High priority</option></select></div>
+        <div class="assignment-list" id="assignmentPageList"></div>
+      </section>
+
+      <section class="page" id="schedulePage">
+        <div class="page-heading"><div><p class="eyebrow">YOUR WEEK</p><h2>Class Schedule</h2><p>Keep your classes, labs and study blocks visible.</p></div><button class="btn primary" id="addClassBtn"><i class="fa-solid fa-plus"></i> Add Class</button></div>
+        <div class="week-grid" id="weekGrid"></div>
+      </section>
+
+      <section class="page" id="campusPage">
+        <div class="page-heading"><div><p class="eyebrow">EVERYDAY CAMPUS</p><h2>Campus Life</h2><p>Attendance, exams, library, money, services, wellbeing and events. All in one place, synced and available offline.</p></div></div>
+        <div class="cl-tabs" id="clTabs" role="tablist"></div>
+        <div id="clBody" class="cl-body"></div>
+      </section>
+
+      <section class="page" id="announcementsPage">
+        <div class="page-heading"><div><p class="eyebrow">CAMPUS NEWS</p><h2>Announcements</h2><p>Important updates from your campus community.</p></div></div>
+        <div class="announcement-list"><article class="announcement-card featured"><div class="announcement-icon"><i class="fa-solid fa-bullhorn"></i></div><div><span class="tag">Academic</span><h3>Course registration window is now open</h3><p>Review your academic plan and confirm your semester courses before the deadline.</p><small>Today · Academic Office</small></div></article><article class="announcement-card"><div class="announcement-icon blue"><i class="fa-solid fa-calendar-check"></i></div><div><span class="tag">Events</span><h3>Computer Science students meetup</h3><p>Connect with fellow students, share project ideas and discover study groups.</p><small>2 days ago · Computing Club</small></div></article><article class="announcement-card"><div class="announcement-icon green"><i class="fa-solid fa-book"></i></div><div><span class="tag">Library</span><h3>Extended library study hours</h3><p>Evening study access has been extended during the assessment period.</p><small>4 days ago · University Library</small></div></article></div>
+      </section>
+
+      <section class="page" id="groupsPage">
+        <div class="page-heading"><div><p class="eyebrow">COLLABORATE</p><h2>Study Groups</h2><p>Learn together and keep each other accountable.</p></div><button class="btn primary" id="createGroupBtn"><i class="fa-solid fa-plus"></i> Create Group</button></div>
+        <div class="group-grid" id="groupGrid"></div>
+      </section>
+
+      <section class="page" id="progressPage">
+        <div class="page-heading"><div><p class="eyebrow">ACADEMIC PERFORMANCE</p><h2>Academic Progress</h2><p>See how your semester is moving forward.</p></div></div>
+        <div class="progress-overview"><div class="progress-ring" id="progressRing"><strong id="progressOverall">0%</strong><span>Overall</span></div><div><h3 id="progressHeadline">Getting started</h3><p id="progressMessage"></p><div class="progress-bar large"><span id="progressOverallBar" style="width:0%"></span></div></div></div>
+        <div class="progress-course-grid" id="progressCourseGrid"></div>
+      </section>
+
+      <section class="page" id="notificationsPage">
+        <div class="page-heading"><div><p class="eyebrow">STAY INFORMED</p><h2>Notifications</h2><p>Recent activity and reminders.</p></div><button class="btn secondary" id="markAllRead">Mark all as read</button></div>
+        <div class="notification-list" id="notificationList"></div>
+      </section>
+
+      <section class="page" id="profilePage">
+        <div class="page-heading"><div><p class="eyebrow">ACCOUNT</p><h2>My Profile</h2><p>Manage your student information.</p></div><button class="btn primary" id="editProfileBtn"><i class="fa-solid fa-pen"></i> Edit Profile</button></div>
+        <div class="profile-card"><div class="profile-cover"></div><div class="profile-main"><div class="avatar profile-avatar" id="profileAvatar">ST</div><div><h3 id="profileName">Student</h3><p id="detailName">Student</p><span id="dataUserEmail" data-user-email></span></div></div><div class="profile-details"><div><span>Programme</span><strong id="profileDetailProgramme">BSc Computer Science</strong></div><div><span>Student ID</span><strong id="profileDetailStudentId">CC2026</strong></div><div><span>Account status</span><strong class="status-text">Cloud connected</strong></div></div></div>
+      <div class="panel data-panel"><div class="panel-head"><div><p class="eyebrow">YOUR DATA</p><h3>Export &amp; backup</h3></div></div><p class="data-note">Download your courses, assignments, classes and groups, or add your timetable and deadlines to Google, Apple or Outlook Calendar.</p><div class="data-actions"><button class="btn secondary" id="exportCalendarBtn"><i class="fa-regular fa-calendar-plus"></i> Export calendar (.ics)</button><button class="btn secondary" id="exportDataBtn"><i class="fa-solid fa-file-arrow-down"></i> Export my data (.json)</button></div></div>
+</section>
+
+      <section class="page" id="notesPage">
+        <div class="page-heading"><div><p class="eyebrow">STUDY NOTES</p><h2>Notes</h2><p>Capture lecture points, ideas and reminders. Synced to your account and available offline.</p></div><button class="btn primary" id="addNoteBtn"><i class="fa-solid fa-plus"></i> New Note</button></div>
+        <div class="toolbar"><div class="search-box"><i class="fa-solid fa-magnifying-glass"></i><input id="noteSearch" type="search" placeholder="Search notes..." aria-label="Search notes"></div><select id="noteCourseFilter" aria-label="Filter notes by course"></select></div>
+        <div class="note-grid" id="noteGrid"></div>
+      </section>
+
+      <section class="page" id="gradesPage">
+        <div class="page-heading"><div><p class="eyebrow">GRADE TRACKER</p><h2>Grades &amp; GPA</h2><p>Record your course grades and see your estimated GPA.</p></div><select id="gradeScale" class="scale-select" aria-label="Grading scale"><option value="us">US 4.0 scale (90 / 80 / 70 / 60)</option><option value="uk">Kenya / UK style (70 / 60 / 50 / 40)</option></select></div>
+        <div class="grade-summary">
+          <div class="grade-stat"><small>Estimated GPA</small><strong id="gpaValue">—</strong></div>
+          <div class="grade-stat"><small>Weighted average</small><strong id="avgValue">—</strong></div>
+          <div class="grade-stat"><small>Graded credits</small><strong id="gradedCredits">0</strong></div>
+        </div>
+        <div class="grade-list" id="gradeList"></div>
+        <p class="grade-note">Grades are weighted by course credits. The GPA is an estimate based on the scale you choose; your institution's official calculation may differ.</p>
+      </section>
+
+      <section class="page" id="settingsPage">
+        <div class="page-heading"><div><p class="eyebrow">PERSONALISE</p><h2>Settings</h2><p>Make CampusConnect yours. Preferences sync across your devices.</p></div></div>
+        <div class="settings-grid">
+          <div class="panel">
+            <div class="panel-head"><div><p class="eyebrow">APPEARANCE</p><h3>Theme &amp; background</h3></div></div>
+            <p class="setting-label">Theme</p>
+            <div class="seg" id="themeSeg"><button type="button" data-theme-opt="light"><i class="fa-solid fa-sun"></i> Light</button><button type="button" data-theme-opt="dark"><i class="fa-solid fa-moon"></i> Dark</button></div>
+            <p class="setting-label">Background scene</p>
+            <div class="scene-picker">
+              <button type="button" class="scene-card" data-scene-opt="aurora"><span class="scene-thumb t-aurora"></span><strong>Aurora</strong></button>
+              <button type="button" class="scene-card" data-scene-opt="campus"><span class="scene-thumb t-campus"></span><strong>Campus</strong></button>
+              <button type="button" class="scene-card" data-scene-opt="doodles"><span class="scene-thumb t-doodles"></span><strong>Study doodles</strong></button>
+              <button type="button" class="scene-card" data-scene-opt="plain"><span class="scene-thumb t-plain"></span><strong>Plain</strong></button>
+            </div>
+            <label class="switch-row"><span><strong>Animated background</strong><small>Turn off for a still background (also saves battery).</small></span><span class="switch"><input type="checkbox" id="motionToggle"><span class="slider"></span></span></label>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head"><div><p class="eyebrow">STUDY</p><h3>Focus goal</h3></div></div>
+            <label class="field-row"><span><strong>Weekly focus goal</strong><small>Minutes of focused study per week (30 to 1200).</small></span><input type="number" id="weeklyGoalInput" min="30" max="1200" step="10" value="150"></label>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head"><div><p class="eyebrow">APP</p><h3>Install &amp; offline</h3></div></div>
+            <p class="setting-text" id="installStatus">Checking install options…</p>
+            <button type="button" class="btn primary hidden" id="settingsInstallBtn"><i class="fa-solid fa-download"></i> Install CampusConnect</button>
+            <p class="setting-text" id="offlineStatus">Checking offline status…</p>
+            <button type="button" class="btn secondary" id="refreshAppBtn"><i class="fa-solid fa-rotate"></i> Refresh app files</button>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head"><div><p class="eyebrow">REMINDERS</p><h3>Class &amp; deadline alerts</h3></div></div>
+            <p class="setting-text" id="remindersStatus">Checking…</p>
+            <button type="button" class="btn primary" id="remindersBtn"><i class="fa-solid fa-bell"></i> Enable reminders</button>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head"><div><p class="eyebrow">ACCOUNT</p><h3>Signed in as</h3></div></div>
+            <p class="setting-text"><strong data-user-email></strong></p>
+            <button type="button" class="btn secondary" id="settingsLogoutBtn"><i class="fa-solid fa-right-from-bracket"></i> Log out</button>
+          </div>
+        </div>
+      </section>
+
+      <footer class="footer">CampusConnect · Student workspace · <span>Built for learning</span></footer>
+    </main>
+  </div>
+
+  <div class="modal-overlay" id="assignmentModal"><div class="modal" role="dialog" aria-modal="true"><div class="modal-head"><div><p class="eyebrow">NEW TASK</p><h3>Add Assignment</h3></div><button type="button" class="icon-btn" data-close="assignmentModal" aria-label="Close"><i class="fa-solid fa-xmark"></i></button></div><form id="assignmentForm"><label>Assignment title<input id="assignmentTitle" required placeholder="e.g. Java project"></label><label>Course<select id="assignmentCourse" required></select></label><label>Priority<select id="assignmentPriority"><option value="high">High</option><option value="medium" selected>Medium</option><option value="low">Low</option></select></label><label>Due date<input id="assignmentDate" type="date" required></label><div class="modal-actions"><button type="button" class="btn secondary" data-close="assignmentModal">Cancel</button><button type="submit" class="btn primary">Save Assignment</button></div></form></div></div>
+  <div class="modal-overlay" id="courseModal"><div class="modal" role="dialog" aria-modal="true"><div class="modal-head"><div><p class="eyebrow">SEMESTER PLAN</p><h3>Add Course</h3></div><button type="button" class="icon-btn" data-close="courseModal" aria-label="Close"><i class="fa-solid fa-xmark"></i></button></div><form id="courseForm"><label>Course code<input id="courseCode" required placeholder="COSC 400"></label><label>Course name<input id="courseName" required placeholder="Advanced Computing"></label><label>Credits<input id="courseCredits" type="number" min="0" max="20" value="3"></label><div class="modal-actions"><button type="button" class="btn secondary" data-close="courseModal">Cancel</button><button type="submit" class="btn primary">Save Course</button></div></form></div></div>
+  <div class="modal-overlay" id="profileModal"><div class="modal" role="dialog" aria-modal="true"><div class="modal-head"><div><p class="eyebrow">PERSONAL DETAILS</p><h3>Edit Profile</h3></div><button type="button" class="icon-btn" data-close="profileModal" aria-label="Close"><i class="fa-solid fa-xmark"></i></button></div><form id="profileForm"><label>Full name<input id="profileNameInput" required></label><label>Programme<input id="profileProgramme" value="BSc Computer Science"></label><label>Student ID<input id="profileStudentId" placeholder="Your student number"></label><div class="modal-actions"><button type="button" class="btn secondary" data-close="profileModal">Cancel</button><button type="submit" class="btn primary">Save Profile</button></div></form></div></div>
+
+  <div class="modal-overlay" id="classModal"><div class="modal" role="dialog" aria-modal="true"><div class="modal-head"><div><p class="eyebrow">WEEKLY TIMETABLE</p><h3>Add Class</h3></div><button type="button" class="icon-btn" data-close="classModal" aria-label="Close"><i class="fa-solid fa-xmark"></i></button></div><form id="classForm"><label>Class title<input id="classTitle" required maxlength="80" placeholder="e.g. Operating Systems"></label><label>Day<select id="classDay"><option value="0">Monday</option><option value="1">Tuesday</option><option value="2">Wednesday</option><option value="3">Thursday</option><option value="4">Friday</option></select></label><label>Start time<input id="classTime" type="time" required value="09:00"></label><label>Location (optional)<input id="classLocation" maxlength="60" placeholder="e.g. Room B12"></label><div class="modal-actions"><button type="button" class="btn secondary" data-close="classModal">Cancel</button><button type="submit" class="btn primary">Save Class</button></div></form></div></div>
+  <div class="modal-overlay" id="groupModal"><div class="modal" role="dialog" aria-modal="true"><div class="modal-head"><div><p class="eyebrow">COLLABORATE</p><h3>Create Study Group</h3></div><button type="button" class="icon-btn" data-close="groupModal" aria-label="Close"><i class="fa-solid fa-xmark"></i></button></div><form id="groupForm"><label>Group name<input id="groupName" required maxlength="60" placeholder="e.g. Algorithms Squad"></label><label>Course<select id="groupCourse"></select></label><div class="modal-actions"><button type="button" class="btn secondary" data-close="groupModal">Cancel</button><button type="submit" class="btn primary">Create Group</button></div></form></div></div>
+
+  <div class="modal-overlay" id="noteModal"><div class="modal" role="dialog" aria-modal="true"><div class="modal-head"><div><p class="eyebrow">CAPTURE</p><h3>New Note</h3></div><button type="button" class="icon-btn" data-close="noteModal" aria-label="Close"><i class="fa-solid fa-xmark"></i></button></div><form id="noteForm"><label>Title<input id="noteTitle" required maxlength="80" placeholder="e.g. Week 4: Normalisation"></label><label>Course<select id="noteCourse"></select></label><label>Note<textarea id="noteBody" rows="6" maxlength="2000" placeholder="Write your note..."></textarea></label><div class="modal-actions"><button type="button" class="btn secondary" data-close="noteModal">Cancel</button><button type="submit" class="btn primary">Save Note</button></div></form></div></div>
+
+  <div class="modal-overlay" id="campusFormModal"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="cfTitle"><div class="modal-head"><div><p class="eyebrow" id="cfEyebrow">CAMPUS LIFE</p><h3 id="cfTitle">Add</h3></div><button type="button" class="icon-btn" data-close="campusFormModal" aria-label="Close"><i class="fa-solid fa-xmark"></i></button></div><form id="cfForm"></form></div></div>
+  <div class="modal-overlay" id="installHelpModal"><div class="modal" role="dialog" aria-modal="true"><div class="modal-head"><div><p class="eyebrow">INSTALL</p><h3>Add CampusConnect to your device</h3></div><button type="button" class="icon-btn" data-close="installHelpModal" aria-label="Close"><i class="fa-solid fa-xmark"></i></button></div><ol class="install-steps"><li><strong>iPhone / iPad (Safari):</strong> tap the Share button, then <em>Add to Home Screen</em>.</li><li><strong>Android (Chrome):</strong> open the browser menu, then <em>Install app</em> or <em>Add to Home screen</em>.</li><li><strong>Windows / Mac (Chrome or Edge):</strong> click the install icon in the address bar, or open the menu and choose <em>Install CampusConnect</em>.</li></ol><div class="modal-actions"><button type="button" class="btn primary" data-close="installHelpModal">Got it</button></div></div></div>
+
+  <div class="modal-overlay cmdk-overlay" id="searchOverlay"><div class="cmdk" role="dialog" aria-modal="true" aria-label="Search"><div class="cmdk-input"><i class="fa-solid fa-magnifying-glass"></i><input id="searchInput" type="text" placeholder="Search assignments, courses, notes, classes..." autocomplete="off" aria-label="Search everything"><kbd>Esc</kbd></div><div class="cmdk-results" id="searchResults" role="listbox"></div><div class="cmdk-foot"><span><kbd>↑</kbd><kbd>↓</kbd> navigate</span><span><kbd>Enter</kbd> open</span></div></div></div>
+
+  <div class="app-banner hidden" id="installBanner" role="region" aria-label="Install app"><div class="banner-icon"><i class="fa-solid fa-mobile-screen-button"></i></div><div class="banner-text"><strong>Install CampusConnect</strong><span>Faster access, full screen, and it works offline.</span></div><button type="button" class="btn primary" id="installNowBtn">Install</button><button type="button" class="text-btn" id="installLaterBtn">Not now</button></div>
+
+  <div class="app-banner hidden" id="updateBanner" role="status"><div class="banner-icon"><i class="fa-solid fa-circle-arrow-up"></i></div><div class="banner-text"><strong>Update available</strong><span>A new version of CampusConnect is ready.</span></div><button type="button" class="btn primary" data-update>Reload</button></div>
+
+  <div class="toast-container" id="toastContainer"></div>
+  <script type="module" src="script.js"></script>
+</body>
+</html>

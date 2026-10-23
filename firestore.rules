@@ -1,0 +1,372 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isOwner(userId) {
+      return request.auth != null && request.auth.uid == userId;
+    }
+
+    // Users can never grant themselves a different role or status.
+    function safeProfile() {
+      let d = request.resource.data;
+      return d.get('role', 'student') == 'student'
+        && d.get('accountStatus', 'active') == 'active'
+        && d.get('name', '') is string
+        && d.get('name', '').size() <= 100
+        && d.get('studentId', '') is string
+        && d.get('studentId', '').size() <= 40
+        && d.get('programme', '') is string
+        && d.get('programme', '').size() <= 100;
+    }
+
+    function validAssignment() {
+      let d = request.resource.data;
+      return d.title is string && d.title.size() > 0 && d.title.size() <= 120
+        && d.get('course', '') is string && d.get('course', '').size() <= 40
+        && d.priority in ['high', 'medium', 'low']
+        && d.date is string && d.date.size() == 10
+        && d.completed is bool;
+    }
+
+    function validCourse() {
+      let d = request.resource.data;
+      return d.code is string && d.code.size() > 0 && d.code.size() <= 20
+        && d.name is string && d.name.size() > 0 && d.name.size() <= 100
+        && d.credits is number && d.credits >= 0 && d.credits <= 20
+        && d.get('grade', 0) is number && d.get('grade', 0) >= 0 && d.get('grade', 0) <= 100;
+    }
+
+    function validClass() {
+      let d = request.resource.data;
+      return d.title is string && d.title.size() > 0 && d.title.size() <= 80
+        && d.day is number && d.day >= 0 && d.day <= 6
+        && d.time is string && d.time.size() == 5
+        && d.get('location', '') is string && d.get('location', '').size() <= 60;
+    }
+
+    function validGroup() {
+      let d = request.resource.data;
+      return d.name is string && d.name.size() > 0 && d.name.size() <= 60
+        && d.get('course', '') is string && d.get('course', '').size() <= 40
+        && d.get('joined', false) is bool
+        && d.get('members', 1) is number;
+    }
+
+    // Announcements are published from the Firebase console (or Admin SDK) only.
+    // Staff accounts are approved by adding a document at admins/{uid} in the Firebase Console.
+    match /admins/{adminId} {
+      allow read: if request.auth != null && request.auth.uid == adminId;
+      allow write: if false;
+    }
+
+    match /announcements/{announcementId} {
+      allow read: if request.auth != null;
+      allow write: if isAdmin();
+    }
+
+    // Cafeteria menus: everyone signed in can read, approved staff publish (document ID = date).
+    match /menus/{menuId} {
+      allow read: if request.auth != null;
+      allow create, update: if isAdmin()
+        && request.resource.data.date == menuId
+        && request.resource.data.meals is map
+        && request.resource.data.get('note', '') is string
+        && request.resource.data.get('note', '').size() <= 200;
+      allow delete: if isAdmin();
+    }
+
+    // Lost & found: shared with every signed-in student; only the author can edit or delete.
+    match /lostfound/{postId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null
+        && validLostFound()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.createdAt == request.time;
+      allow update: if request.auth != null
+        && resource.data.uid == request.auth.uid
+        && validLostFound()
+        && request.resource.data.uid == resource.data.uid
+        && request.resource.data.createdAt == resource.data.createdAt;
+      allow delete: if request.auth != null && resource.data.uid == request.auth.uid;
+    }
+
+    // Reports are write-only for students; staff review them in the console.
+    match /lfreports/{reportId} {
+      allow create: if request.auth != null
+        && request.resource.data.uid == request.auth.uid
+        && reportId == request.resource.data.postId + '_' + request.auth.uid
+        && request.resource.data.get('reason', '') is string
+        && request.resource.data.get('reason', '').size() <= 60;
+      allow read, update, delete: if false;
+    }
+
+    function validTodo() {
+      let d = request.resource.data;
+      return d.text is string && d.text.size() > 0 && d.text.size() <= 120
+        && d.done is bool
+        && d.get('createdAt', 0) is number;
+    }
+
+    function validNote() {
+      let d = request.resource.data;
+      return d.title is string && d.title.size() > 0 && d.title.size() <= 80
+        && d.get('body', '') is string && d.get('body', '').size() <= 2000
+        && d.get('course', '') is string && d.get('course', '').size() <= 40;
+    }
+
+    function validFocus() {
+      let d = request.resource.data;
+      return d.minutes is number && d.minutes >= 0 && d.minutes <= 1440
+        && d.get('date', '') is string && d.get('date', '').size() <= 10;
+    }
+
+    function validPrefs() {
+      let d = request.resource.data;
+      return d.get('theme', 'light') in ['light', 'dark']
+        && d.get('scene', 'aurora') in ['aurora', 'campus', 'doodles', 'plain']
+        && d.get('motion', true) is bool
+        && d.get('weeklyGoal', 150) is number
+        && d.get('weeklyGoal', 150) >= 30 && d.get('weeklyGoal', 150) <= 1200
+        && d.get('gpaScale', 'us') in ['us', 'uk']
+        && d.get('readNotifications', []) is list
+        && d.get('readNotifications', []).size() <= 200;
+    }
+
+    function isAdmin() {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    function validLostFound() {
+      let d = request.resource.data;
+      return d.type in ['lost', 'found']
+        && d.title is string && d.title.size() > 0 && d.title.size() <= 80
+        && d.get('description', '') is string && d.get('description', '').size() <= 500
+        && d.get('category', '') is string && d.get('category', '').size() <= 40
+        && d.get('place', '') is string && d.get('place', '').size() <= 80
+        && isDateString(d.date)
+        && d.get('contact', '') is string && d.get('contact', '').size() <= 100
+        && d.get('posterName', '') is string && d.get('posterName', '').size() <= 40
+        && d.get('status', 'open') in ['open', 'resolved']
+        && d.get('photo', '') is string && d.get('photo', '').size() <= 200000
+        && d.uid is string;
+    }
+
+    function validJournal() {
+      let d = request.resource.data;
+      return isDateString(d.date)
+        && d.text is string && d.text.size() > 0 && d.text.size() <= 2000
+        && d.get('prompt', '') is string && d.get('prompt', '').size() <= 200;
+    }
+
+    function isDateString(v) {
+      return v is string && v.size() == 10;
+    }
+
+    function validAttendance() {
+      let d = request.resource.data;
+      return isDateString(d.date)
+        && d.title is string && d.title.size() > 0 && d.title.size() <= 80
+        && d.status in ['present', 'late', 'absent']
+        && d.get('classId', '') is string && d.get('classId', '').size() <= 40;
+    }
+
+    function validExam() {
+      let d = request.resource.data;
+      return d.title is string && d.title.size() > 0 && d.title.size() <= 100
+        && isDateString(d.date)
+        && d.get('course', '') is string && d.get('course', '').size() <= 40
+        && d.get('time', '') is string && d.get('time', '').size() <= 5
+        && d.get('venue', '') is string && d.get('venue', '').size() <= 80;
+    }
+
+    function validLoan() {
+      let d = request.resource.data;
+      return d.title is string && d.title.size() > 0 && d.title.size() <= 120
+        && d.get('author', '') is string && d.get('author', '').size() <= 80
+        && isDateString(d.due)
+        && d.get('returned', false) is bool
+        && d.get('renewed', 0) is number && d.get('renewed', 0) >= 0 && d.get('renewed', 0) <= 20;
+    }
+
+    function validExpense() {
+      let d = request.resource.data;
+      return d.amount is number && d.amount > 0 && d.amount <= 1000000000
+        && d.type in ['expense', 'income']
+        && d.category is string && d.category.size() <= 30
+        && isDateString(d.date)
+        && d.get('note', '') is string && d.get('note', '').size() <= 80;
+    }
+
+    function validBill() {
+      let d = request.resource.data;
+      return d.title is string && d.title.size() > 0 && d.title.size() <= 80
+        && d.amount is number && d.amount >= 0 && d.amount <= 1000000000
+        && isDateString(d.due)
+        && d.get('paid', false) is bool;
+    }
+
+    function validBudget() {
+      let d = request.resource.data;
+      return d.monthly is number && d.monthly >= 0 && d.monthly <= 1000000000
+        && d.get('currency', '$') is string && d.get('currency', '$').size() <= 4;
+    }
+
+    function validContact() {
+      let d = request.resource.data;
+      return d.name is string && d.name.size() > 0 && d.name.size() <= 60
+        && d.get('phone', '') is string && d.get('phone', '').size() <= 30
+        && d.get('note', '') is string && d.get('note', '').size() <= 80
+        && d.get('kind', '') in ['', 'support'];
+    }
+
+    function validLink() {
+      let d = request.resource.data;
+      return d.title is string && d.title.size() > 0 && d.title.size() <= 60
+        && d.url is string && d.url.size() <= 300 && d.url.matches('^https?://.*');
+    }
+
+    function validPlace() {
+      let d = request.resource.data;
+      return d.name is string && d.name.size() > 0 && d.name.size() <= 80
+        && d.get('note', '') is string && d.get('note', '').size() <= 80;
+    }
+
+    function validShuttle() {
+      let d = request.resource.data;
+      return d.name is string && d.name.size() > 0 && d.name.size() <= 60
+        && d.times is string && d.times.size() <= 200;
+    }
+
+    function validWellness() {
+      let d = request.resource.data;
+      return d.get('done', []) is list && d.get('done', []).size() <= 10
+        && d.get('mood', 0) is number && d.get('mood', 0) >= 0 && d.get('mood', 0) <= 5
+        && d.get('water', 0) is number && d.get('water', 0) >= 0 && d.get('water', 0) <= 30;
+    }
+
+    function validEvent() {
+      let d = request.resource.data;
+      return d.title is string && d.title.size() > 0 && d.title.size() <= 100
+        && isDateString(d.date)
+        && d.get('kind', '') is string && d.get('kind', '').size() <= 20
+        && d.get('time', '') is string && d.get('time', '').size() <= 5
+        && d.get('place', '') is string && d.get('place', '').size() <= 80
+        && d.get('going', false) is bool;
+    }
+
+    match /users/{userId} {
+
+      allow read, delete: if isOwner(userId);
+      allow create, update: if isOwner(userId) && safeProfile();
+
+      match /assignments/{assignmentId} {
+        allow read, delete: if isOwner(userId);
+        allow create: if isOwner(userId) && validAssignment();
+        // Partial updates (e.g. toggling "completed") are validated on the merged result.
+        allow update: if isOwner(userId) && validAssignment();
+      }
+
+      match /courses/{courseId} {
+        allow read, delete: if isOwner(userId);
+        allow create, update: if isOwner(userId) && validCourse();
+      }
+
+      match /classes/{classId} {
+        allow read, delete: if isOwner(userId);
+        allow create, update: if isOwner(userId) && validClass();
+      }
+
+      match /todos/{todoId} {
+        allow read, delete: if isOwner(userId);
+        allow create, update: if isOwner(userId) && validTodo();
+      }
+
+      match /notes/{noteId} {
+        allow read, delete: if isOwner(userId);
+        allow create, update: if isOwner(userId) && validNote();
+      }
+
+      match /focus/{dayId} {
+        allow read, delete: if isOwner(userId);
+        allow create, update: if isOwner(userId) && validFocus();
+      }
+
+      match /settings/{settingId} {
+        allow read, delete: if isOwner(userId);
+        allow create, update: if isOwner(userId) && validPrefs();
+      }
+
+      match /groups/{groupId} {
+        allow read, delete: if isOwner(userId);
+        allow create, update: if isOwner(userId) && validGroup();
+      }
+
+      match /attendance/{attendanceId} {
+        allow read, delete: if isOwner(userId);
+        allow create, update: if isOwner(userId) && validAttendance();
+      }
+
+      match /exams/{examId} {
+        allow read, delete: if isOwner(userId);
+        allow create, update: if isOwner(userId) && validExam();
+      }
+
+      match /loans/{loanId} {
+        allow read, delete: if isOwner(userId);
+        allow create, update: if isOwner(userId) && validLoan();
+      }
+
+      match /expenses/{expenseId} {
+        allow read, delete: if isOwner(userId);
+        allow create, update: if isOwner(userId) && validExpense();
+      }
+
+      match /bills/{billId} {
+        allow read, delete: if isOwner(userId);
+        allow create, update: if isOwner(userId) && validBill();
+      }
+
+      match /budget/{budgetId} {
+        allow read, delete: if isOwner(userId);
+        allow create, update: if isOwner(userId) && validBudget();
+      }
+
+      match /contacts/{contactId} {
+        allow read, delete: if isOwner(userId);
+        allow create, update: if isOwner(userId) && validContact();
+      }
+
+      match /links/{linkId} {
+        allow read, delete: if isOwner(userId);
+        allow create, update: if isOwner(userId) && validLink();
+      }
+
+      match /places/{placeId} {
+        allow read, delete: if isOwner(userId);
+        allow create, update: if isOwner(userId) && validPlace();
+      }
+
+      match /shuttle/{routeId} {
+        allow read, delete: if isOwner(userId);
+        allow create, update: if isOwner(userId) && validShuttle();
+      }
+
+      match /wellness/{dayId} {
+        allow read, delete: if isOwner(userId);
+        allow create, update: if isOwner(userId) && validWellness();
+      }
+
+      match /events/{eventId} {
+        allow read, delete: if isOwner(userId);
+        allow create, update: if isOwner(userId) && validEvent();
+      }
+
+      match /journal/{entryId} {
+        allow read, delete: if isOwner(userId);
+        allow create, update: if isOwner(userId) && validJournal();
+      }
+    }
+  }
+}

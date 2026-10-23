@@ -1,0 +1,94 @@
+{
+  "id": "./",
+  "name": "CampusConnect",
+  "short_name": "CampusConnect",
+  "description": "Your student campus hub: courses, assignments, schedule, notes, grades and focus tools. Syncs to your account and works offline.",
+  "start_url": "./?source=pwa",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": [
+    "window-controls-overlay",
+    "standalone",
+    "minimal-ui"
+  ],
+  "orientation": "any",
+  "background_color": "#f6f7fb",
+  "theme_color": "#4f46e5",
+  "lang": "en",
+  "categories": [
+    "education",
+    "productivity"
+  ],
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Assignments",
+      "short_name": "Tasks",
+      "url": "./?page=assignments",
+      "icons": [
+        {
+          "src": "icons/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Schedule",
+      "short_name": "Schedule",
+      "url": "./?page=schedule",
+      "icons": [
+        {
+          "src": "icons/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Notes",
+      "short_name": "Notes",
+      "url": "./?page=notes",
+      "icons": [
+        {
+          "src": "icons/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Focus timer",
+      "short_name": "Focus",
+      "url": "./?page=dashboard&focus=1",
+      "icons": [
+        {
+          "src": "icons/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    }
+  ]
+}
