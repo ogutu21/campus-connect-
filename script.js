@@ -11,7 +11,7 @@
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js";
 
-import { initCampus, campusLoad, campusReset, campusAlerts } from "./campus.js";
+import { initCampus, campusLoad, campusReset, campusAlerts, campusExport } from "./campus.js";
 
 import {
     getAuth,
@@ -39,7 +39,10 @@ import {
     deleteDoc,
     query,
     orderBy,
-    serverTimestamp
+    serverTimestamp,
+    terminate,
+    clearIndexedDbPersistence,
+    waitForPendingWrites
 } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
 
 
@@ -193,6 +196,8 @@ let pageHistory = ["dashboard"];
 let isNavigatingBack = false;
 let dataLoading = false;
 let registering = false;
+let allowSeeding = false;   // demo data is created only once per account (see loadUserData)
+let profileYear = null;
 
 let assignments = [
     {
@@ -1283,7 +1288,7 @@ async function handleProfileSubmit(event) {
         JSON.stringify(profile)
     );
 
-    applyProfile(profile);
+    applyProfile({ ...profile, yearOfStudy: profileYear });
 
     if (currentUser) {
 
@@ -1450,6 +1455,17 @@ function applyProfile(profile) {
         studentIdInput.value =
             profile.studentId || "";
     }
+
+    if ("yearOfStudy" in profile) profileYear = profile.yearOfStudy || null;
+
+    // Profile page details (these were previously hardcoded in the HTML).
+    const detailProgramme = document.getElementById("profileDetailProgramme");
+    const detailStudentId = document.getElementById("profileDetailStudentId");
+    const detailYear = document.getElementById("profileDetailYear");
+
+    if (detailProgramme) detailProgramme.textContent = profile.programme || "Not set";
+    if (detailStudentId) detailStudentId.textContent = profile.studentId || "Not set";
+    if (detailYear) detailYear.textContent = profileYear ? `Year ${profileYear}` : "Not set";
 }
 
 
@@ -1508,12 +1524,34 @@ async function handleLogout() {
 
     try {
 
+        // Give queued changes a few seconds to sync; warn before discarding anything.
+        let synced = true;
+
+        try {
+            synced = await Promise.race([
+                waitForPendingWrites(db).then(() => true),
+                new Promise(resolve => setTimeout(() => resolve(false), 4000))
+            ]);
+        } catch {
+            synced = false;
+        }
+
+        if (!synced && !confirm("Some changes haven't synced yet (you may be offline). Logging out will discard them. Log out anyway?")) {
+            return;
+        }
+
         await signOut(auth);
 
-        showToast(
-            "You have been logged out.",
-            "success"
-        );
+        // Wipe the local offline copy of this account's data so the next person on a shared
+        // computer cannot read it, then reload to start from a clean state.
+        try {
+            await terminate(db);
+            await clearIndexedDbPersistence(db);
+        } catch (cacheError) {
+            console.warn("Could not clear the local data cache:", cacheError);
+        }
+
+        location.reload();
 
     } catch (error) {
 
@@ -1686,10 +1724,18 @@ async function loadUserData(user) {
 
                 studentId:
                     data.studentId ||
-                    ""
+                    "",
+
+                yearOfStudy:
+                    Number(data.yearOfStudy) || null
             };
 
+            // Demo courses, classes and groups are seeded only until the account is flagged.
+            allowSeeding = data.seeded !== true;
+
         } else {
+
+            allowSeeding = true;
 
             profile = {
 
@@ -1712,7 +1758,8 @@ async function loadUserData(user) {
                     email: user.email || "",
                     createdAt: serverTimestamp(),
                     updatedAt: serverTimestamp()
-                }
+                },
+                { merge: true }
             );
         }
 
@@ -1735,6 +1782,12 @@ async function loadUserData(user) {
         notes = await safeLoad(() => cloudLoadList(user, "notes", []), []);
         focusLog = await safeLoad(() => loadFocusLog(user), {});
         await safeLoad(() => campusLoad(user), null);
+
+        // Mark the account as seeded so deleted demo items never come back on the next sign-in.
+        if (allowSeeding) {
+            allowSeeding = false;
+            await safeLoad(() => setDoc(profileRef, { seeded: true }, { merge: true }), null);
+        }
 
         renderNotes();
         renderGrades();
@@ -1797,6 +1850,13 @@ async function loadAssignments(user) {
 
         snapshot =
             await getDocs(assignmentsRef);
+    }
+
+    if (snapshot.empty && !allowSeeding) {
+
+        assignments = [];
+
+        return;
     }
 
     if (snapshot.empty) {
@@ -1874,6 +1934,13 @@ async function loadCourses(user) {
 
     const snapshot =
         await getDocs(coursesRef);
+
+    if (snapshot.empty && !allowSeeding) {
+
+        courses = [];
+
+        return;
+    }
 
     if (snapshot.empty) {
 
@@ -2751,7 +2818,7 @@ async function cloudLoadList(user, sub, defaults) {
 
     if (snapshot.empty) {
 
-        const items = defaults.map(item => ({ ...item, id: doc(ref).id }));
+        const items = (allowSeeding ? defaults : []).map(item => ({ ...item, id: doc(ref).id }));
 
         await Promise.all(items.map(item => {
             const { id, ...data } = item;
@@ -3491,7 +3558,11 @@ function exportMyData() {
         courses,
         assignments: assignments.map(({ firestoreId, ...rest }) => rest),
         classes: classes.map(({ id, ...rest }) => rest),
-        groups: groups.map(({ id, ...rest }) => rest)
+        groups: groups.map(({ id, ...rest }) => rest),
+        notes: notes.map(({ id, ...rest }) => rest),
+        todos: todos.map(({ id, ...rest }) => rest),
+        focusMinutesByDay: focusLog,
+        campusLife: campusExport()
     };
 
     downloadFile(

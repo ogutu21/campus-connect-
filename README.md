@@ -57,8 +57,15 @@ users/{uid}/todos/{todoId}
 users/{uid}/notes/{noteId}
 users/{uid}/focus/{yyyy-mm-dd}
 users/{uid}/settings/preferences
+users/{uid}/{attendance|exams|loans|expenses|bills|budget|contacts|links|places|shuttle|wellness|events|journal}/{id}
 announcements/{id}        (read-only for signed-in users)
+lostfound/{postId}        (shared; only the author can edit or delete)
+lfreports/{postId_uid}    (write-only for students; staff review in the console)
+menus/{yyyy-mm-dd}        (cafeteria menus; staff only can write)
+admins/{uid}              (approves staff accounts; managed in the console)
 ```
+
+Demo courses, classes and groups are created once, when an account is first set up. The profile document gets `seeded: true` afterwards, so items a student deletes never come back.
 
 Student profile data includes name, student ID, programme, year of study, email, role, and account status.
 

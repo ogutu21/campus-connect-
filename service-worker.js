@@ -4,7 +4,7 @@
    - Firebase SDK, Font Awesome and fonts: stale-while-revalidate runtime cache.
    - Firestore/Auth API traffic is never touched (Firestore has its own offline cache).
 */
-const VERSION = "campusconnect-v10";
+const VERSION = "campusconnect-v11";
 const SHELL_CACHE = `${VERSION}-shell`;
 const RUNTIME_CACHE = `${VERSION}-runtime`;
 
@@ -126,6 +126,20 @@ self.addEventListener("fetch", event => {
       (url.hostname !== "www.gstatic.com" || url.pathname.startsWith("/firebasejs/"))) {
     event.respondWith(staleWhileRevalidate(request));
   }
+});
+
+// Tapping a reminder notification focuses an open CampusConnect window, or opens the app.
+self.addEventListener("notificationclick", event => {
+  event.notification.close();
+
+  event.waitUntil((async () => {
+    const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+    const existing = windows.find(client => new URL(client.url).origin === self.location.origin);
+
+    if (existing) return existing.focus();
+
+    return self.clients.openWindow("./");
+  })());
 });
 
 self.addEventListener("message", event => {

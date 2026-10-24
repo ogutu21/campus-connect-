@@ -2107,7 +2107,7 @@ function renderSupport() {
             <div class="panel">
                 <div class="panel-head"><div><p class="eyebrow">PRIVATE JOURNAL</p><h3>Today's reflection</h3></div></div>
                 <p class="journal-prompt">${esc(prompt)}</p>
-                <textarea id="journalText" class="journal-input" rows="4" maxlength="2000" placeholder="Write freely. Only you can see this." aria-label="Journal entry"></textarea>
+                <textarea id="journalText" class="journal-input" rows="4" maxlength="2000" placeholder="Write freely. Entries are private to your account." aria-label="Journal entry"></textarea>
                 <div class="cl-actions"><button type="button" class="btn primary" data-cl="journal-save" data-prompt="${esc(prompt)}"><i class="fa-solid fa-floppy-disk"></i> Save entry</button></div>
                 ${entries.length ? entries.map(entry => `
                     <div class="cl-row stack journal-entry">
@@ -2472,6 +2472,12 @@ export async function campusLoad(user) {
     startLive(user);
     renderAll();
     checkReminders();
+}
+
+
+export function campusExport() {
+
+    return JSON.parse(JSON.stringify(data));
 }
 
 
