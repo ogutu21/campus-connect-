@@ -80,6 +80,7 @@ service cloud.firestore {
     match /lostfound/{postId} {
       allow read: if request.auth != null;
       allow create: if request.auth != null
+        && request.auth.token.email_verified == true
         && validLostFound()
         && request.resource.data.uid == request.auth.uid
         && request.resource.data.createdAt == request.time;

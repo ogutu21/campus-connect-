@@ -1504,7 +1504,17 @@ function renderLostFound() {
     const lost = lfPosts.filter(p => p.type === "lost" && p.status !== "resolved").length;
     const found = lfPosts.filter(p => p.type === "found" && p.status !== "resolved").length;
 
+    const verified = Boolean(ctx.getUser()?.emailVerified);
+
     return `
+        ${verified ? "" : `
+        <div class="safety-note info"><i class="fa-solid fa-envelope-circle-check"></i>
+            <span><strong>Verify your email to post.</strong> Browsing is open to everyone, but posting needs a verified email so students can trust who they are contacting. Check your inbox (and spam) for the link, then tap "I've verified".</span>
+        </div>
+        <div class="cl-actions">
+            <button type="button" class="btn secondary" data-cl="verify-send"><i class="fa-solid fa-paper-plane"></i> Send verification email</button>
+            <button type="button" class="btn primary" data-cl="verify-check"><i class="fa-solid fa-check"></i> I've verified</button>
+        </div>`}
         <div class="cl-actions">
             <button type="button" class="btn primary" data-cl="lf-post-lost"><i class="fa-solid fa-magnifying-glass"></i> I lost something</button>
             <button type="button" class="btn secondary" data-cl="lf-post-found"><i class="fa-solid fa-hand-holding-hand"></i> I found something</button>
@@ -1576,6 +1586,11 @@ async function postLostFound(type) {
 
     if (!user) {
         ctx.showToast("Sign in to post.", "error");
+        return;
+    }
+
+    if (!user.emailVerified) {
+        ctx.showToast("Verify your email first. Use the buttons at the top of this tab.", "error");
         return;
     }
 
@@ -2338,6 +2353,21 @@ function handleAction(button) {
         }
         case "clear-past-events":
             data.events.filter(e => ctx.daysUntil(e.date) < 0).forEach(e => remove("events", e.id));
+            break;
+        case "verify-send":
+            ctx.sendVerification().then(
+                () => ctx.showToast("Verification email sent. Check your inbox and spam folder.", "success"),
+                error => ctx.showToast(error?.code === "auth/too-many-requests" ? "Too many requests. Please wait a few minutes and try again." : "Could not send the email. Try again later.", "error")
+            );
+            break;
+        case "verify-check":
+            ctx.refreshVerified().then(
+                ok => {
+                    ctx.showToast(ok ? "Email verified. You can now post." : "Not verified yet. Open the link in the email first.", ok ? "success" : "error");
+                    renderAll();
+                },
+                () => ctx.showToast("Could not check right now. Check your connection.", "error")
+            );
             break;
         case "lf-post-lost": postLostFound("lost"); break;
         case "lf-post-found": postLostFound("found"); break;

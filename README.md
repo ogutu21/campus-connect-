@@ -165,3 +165,10 @@ New Firestore collections (rules included): attendance, exams, loans, expenses, 
 **Support** is a mental wellbeing space: a crisis banner with links to findahelpline.com and befrienders.org, a personal support circle (counsellor, friend, family) with pre-written messages you can text in one tap, box breathing, 5-4-3-2-1 grounding, a private journal with daily prompts, and short self-help guides. A gentle nudge appears if your mood check-ins stay low for three days. Journal entries are stored privately under your account.
 
 New Firestore rules: `lostfound`, `lfreports`, `menus`, `admins` (top level) and `journal` (per user). **Republish `firestore.rules` after updating.**
+
+## Security notes
+
+- **Email verification:** new accounts are sent a verification email. Posting in Lost & Found requires a verified email (enforced in the UI and in `firestore.rules` through `request.auth.token.email_verified`). Accounts created before this change must verify once; the Lost & Found tab has "Send verification email" and "I've verified" buttons.
+- **Security headers:** `firebase.json` sets `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy` and `Permissions-Policy`.
+- **Content-Security-Policy:** it is currently sent as `Content-Security-Policy-Report-Only`. After deploying, open the site, use every page, and check the browser console for "Content Security Policy" warnings. When there are none, rename the header key in `firebase.json` to `Content-Security-Policy` and redeploy.
+- **After changing `firestore.rules`,** publish them in the Firebase Console.

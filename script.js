@@ -20,6 +20,7 @@ import {
     signInWithEmailAndPassword,
     sendPasswordResetEmail,
     signOut,
+    sendEmailVerification,
     updateProfile as updateAuthProfile
 } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js";
 
@@ -288,6 +289,13 @@ document.addEventListener("DOMContentLoaded", () => {
         openModal,
         closeModal,
         getUser: () => currentUser,
+        sendVerification: async () => { if (auth.currentUser) await sendEmailVerification(auth.currentUser); },
+        refreshVerified: async () => {
+            if (!auth.currentUser) return false;
+            await auth.currentUser.reload();
+            await auth.currentUser.getIdToken(true);
+            return auth.currentUser.emailVerified;
+        },
         getCourses: () => courses,
         getClasses: () => classes,
         getAssignments: () => assignments,
@@ -2491,6 +2499,13 @@ async function handleStudentRegistration(event) {
             displayName: name
         });
 
+        // Verification is required to post in Lost & Found. A failure here must not block sign-up.
+        try {
+            await sendEmailVerification(result.user);
+        } catch (verifyError) {
+            console.warn("Verification email could not be sent:", verifyError);
+        }
+
         await setDoc(
             doc(db, "users", result.user.uid),
             {
@@ -2510,7 +2525,7 @@ async function handleStudentRegistration(event) {
         registering = false;
         await loadUserData(result.user);
 
-        setRegistrationMessage("Account created successfully. Welcome to CampusConnect!", "success");
+        setRegistrationMessage("Account created. We sent a verification email to " + email + ". Verify it to post in Lost & Found.", "success");
 
         setTimeout(() => {
             closeStudentRegistration();
