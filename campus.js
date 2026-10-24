@@ -1387,7 +1387,12 @@ function timeAgo(timestamp) {
 
 
 function safePhoto(photo) {
-    return typeof photo === "string" && /^data:image\/(jpeg|png|webp);base64,/.test(photo) ? photo : "";
+    // Strict check: only base64 characters after the prefix, so a stored value can never
+    // close the src="..." attribute and inject markup or event handlers.
+    return typeof photo === "string"
+        && photo.length <= 200000
+        && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(photo)
+        ? photo : "";
 }
 
 

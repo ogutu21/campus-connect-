@@ -150,6 +150,7 @@ service cloud.firestore {
         && d.get('posterName', '') is string && d.get('posterName', '').size() <= 40
         && d.get('status', 'open') in ['open', 'resolved']
         && d.get('photo', '') is string && d.get('photo', '').size() <= 200000
+        && d.get('photo', '').matches('^(data:image/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+)?$')
         && d.uid is string;
     }
 

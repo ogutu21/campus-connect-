@@ -192,6 +192,7 @@ let currentPage = "dashboard";
 let pageHistory = ["dashboard"];
 let isNavigatingBack = false;
 let dataLoading = false;
+let registering = false;
 
 let assignments = [
     {
@@ -1602,6 +1603,10 @@ function initializeFirebaseAuth() {
             hideAuthenticationGate();
             updateFirebaseStatus(user);
 
+            // During sign-up the registration handler writes the profile first, then loads data,
+            // so the auto-created default profile can never overwrite the student's details.
+            if (registering) return;
+
             await loadUserData(user);
         }
     );
@@ -2411,6 +2416,8 @@ async function handleStudentRegistration(event) {
 
         setRegistrationMessage("Creating your secure student account...");
 
+        registering = true;
+
         const result = await createUserWithEmailAndPassword(auth, email, password);
 
         await updateAuthProfile(result.user, {
@@ -2433,6 +2440,9 @@ async function handleStudentRegistration(event) {
             { merge: true }
         );
 
+        registering = false;
+        await loadUserData(result.user);
+
         setRegistrationMessage("Account created successfully. Welcome to CampusConnect!", "success");
 
         setTimeout(() => {
@@ -2442,7 +2452,14 @@ async function handleStudentRegistration(event) {
     } catch (error) {
         console.error("Student registration failed:", error);
         setRegistrationMessage(friendlyAuthError(error), "error");
+
+        // If the account was created but a later step failed, still load the signed-in user's data.
+        if (registering && auth.currentUser) {
+            registering = false;
+            loadUserData(auth.currentUser);
+        }
     } finally {
+        registering = false;
         if (submitButton) {
             submitButton.disabled = false;
             submitButton.innerHTML = '<span>Create Student Account</span><i class="fa-solid fa-arrow-right"></i>';
@@ -4601,7 +4618,7 @@ async function updateOfflineStatus() {
     let ready = false;
 
     try {
-        ready = "caches" in window && (await caches.keys()).some(key => key.startsWith("campusconnect-shell"));
+        ready = "caches" in window && (await caches.keys()).some(key => key.endsWith("-shell"));
     } catch { /* ignore */ }
 
     el.textContent = ready
