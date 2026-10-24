@@ -569,3 +569,22 @@ body.dark .safety-note.info{background:rgba(99,102,241,.14);color:#c7d2fe;border
 @media(max-width:1100px){.menu-grid{grid-template-columns:1fr}}
 @media(max-width:760px){.lf-grid{grid-template-columns:1fr}.lf-card{flex-direction:column}.lf-photo{width:100%;height:150px}}
 @media (prefers-reduced-motion:reduce){.breath-circle{transition:none}.live-dot{animation:none}}
+
+/* =====================================================
+   RESOURCE LIBRARY
+   ===================================================== */
+.res-list{display:grid;gap:12px}
+.res-card{display:flex;gap:14px;padding:14px;border:1px solid var(--border);border-radius:18px;background:var(--card);transition:transform .15s}
+.res-card:hover{transform:translateY(-1px)}
+.vote-btn{flex:none;width:50px;align-self:flex-start;display:grid;justify-items:center;gap:2px;padding:8px 0;border:1px solid var(--border);border-radius:14px;background:transparent;color:var(--muted);font-size:12px}
+.vote-btn b{font-size:14px;color:var(--text)}
+.vote-btn:hover{border-color:var(--primary);color:var(--primary)}
+.vote-btn.on{background:var(--primary);border-color:var(--primary);color:#fff}
+.vote-btn.on b{color:#fff}
+.res-main{min-width:0;flex:1}
+.res-main h4{margin:8px 0 4px;font-size:14px;overflow-wrap:anywhere}
+.res-main h4 a{color:var(--text);text-decoration:none}
+.res-main h4 a:hover{color:var(--primary);text-decoration:underline}
+.res-main p{margin:0 0 8px;font-size:12px;color:var(--muted);line-height:1.55;overflow-wrap:anywhere}
+.cl-badge i{margin-right:4px}
+@media(max-width:560px){.res-card{gap:10px;padding:12px}.vote-btn{width:44px}}

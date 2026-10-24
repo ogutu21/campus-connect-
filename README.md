@@ -61,6 +61,8 @@ users/{uid}/{attendance|exams|loans|expenses|bills|budget|contacts|links|places|
 announcements/{id}        (read-only for signed-in users)
 lostfound/{postId}        (shared; only the author can edit or delete)
 lfreports/{postId_uid}    (write-only for students; staff review in the console)
+resources/{id}            (shared resource library; voters = list of uids)
+resreports/{postId_uid}   (write-only for students; staff review in the console)
 menus/{yyyy-mm-dd}        (cafeteria menus; staff only can write)
 admins/{uid}              (approves staff accounts; managed in the console)
 ```
@@ -172,3 +174,10 @@ New Firestore rules: `lostfound`, `lfreports`, `menus`, `admins` (top level) and
 - **Security headers:** `firebase.json` sets `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy` and `Permissions-Policy`.
 - **Content-Security-Policy:** it is currently sent as `Content-Security-Policy-Report-Only`. After deploying, open the site, use every page, and check the browser console for "Content Security Policy" warnings. When there are none, rename the header key in `firebase.json` to `Content-Security-Policy` and redeploy.
 - **After changing `firestore.rules`,** publish them in the Firebase Console.
+
+## Resource library (Campus Life > Resources)
+
+Students share links, notes, past papers, videos and guides by course. Everyone signed in can browse, search and filter; posting and voting need a verified email.
+- **Upvotes** are stored as a `voters` list of user IDs on each post. The rules only allow a user to add or remove their own ID.
+- **Moderation:** any student can **Report** a post (it is hidden for them and a document is written to `resreports` for staff to review in the Firebase Console). Authors can delete their own posts, and approved staff (users with a document in `admins`) get a "Remove (admin)" button on any post.
+- **Republish `firestore.rules`** after updating: the new `resources` and `resreports` collections are denied until you do.

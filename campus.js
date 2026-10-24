@@ -8,6 +8,8 @@
 
 import {
     collection,
+    arrayRemove,
+    arrayUnion,
     deleteDoc,
     doc,
     getDoc,
@@ -16,7 +18,8 @@ import {
     orderBy,
     query,
     serverTimestamp,
-    setDoc
+    setDoc,
+    updateDoc
 } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
 
 const SUBS = [
@@ -28,6 +31,7 @@ const TABS = [
     { id: "attendance", label: "Attendance", icon: "fa-clipboard-user" },
     { id: "exams", label: "Exams", icon: "fa-file-pen" },
     { id: "library", label: "Library", icon: "fa-book-bookmark" },
+    { id: "resources", label: "Resources", icon: "fa-book-open-reader" },
     { id: "budget", label: "Budget", icon: "fa-wallet" },
     { id: "cafeteria", label: "Cafeteria", icon: "fa-utensils" },
     { id: "lostfound", label: "Lost &amp; Found", icon: "fa-magnifying-glass-location" },
@@ -1504,17 +1508,8 @@ function renderLostFound() {
     const lost = lfPosts.filter(p => p.type === "lost" && p.status !== "resolved").length;
     const found = lfPosts.filter(p => p.type === "found" && p.status !== "resolved").length;
 
-    const verified = Boolean(ctx.getUser()?.emailVerified);
-
     return `
-        ${verified ? "" : `
-        <div class="safety-note info"><i class="fa-solid fa-envelope-circle-check"></i>
-            <span><strong>Verify your email to post.</strong> Browsing is open to everyone, but posting needs a verified email so students can trust who they are contacting. Check your inbox (and spam) for the link, then tap "I've verified".</span>
-        </div>
-        <div class="cl-actions">
-            <button type="button" class="btn secondary" data-cl="verify-send"><i class="fa-solid fa-paper-plane"></i> Send verification email</button>
-            <button type="button" class="btn primary" data-cl="verify-check"><i class="fa-solid fa-check"></i> I've verified</button>
-        </div>`}
+        ${verifyNoticeHTML()}
         <div class="cl-actions">
             <button type="button" class="btn primary" data-cl="lf-post-lost"><i class="fa-solid fa-magnifying-glass"></i> I lost something</button>
             <button type="button" class="btn secondary" data-cl="lf-post-found"><i class="fa-solid fa-hand-holding-hand"></i> I found something</button>
@@ -1967,6 +1962,358 @@ function subscribeMenus() {
 
 
 /* =====================================================
+   RESOURCE LIBRARY (shared between students, live)
+   Students share links, notes, past papers and guides by course.
+   Posting needs a verified email. Votes are stored as a uid list on each post.
+   ===================================================== */
+
+const RES_KINDS = [
+    { value: "link", label: "Link", icon: "fa-link" },
+    { value: "notes", label: "Notes", icon: "fa-note-sticky" },
+    { value: "past-paper", label: "Past paper", icon: "fa-file-lines" },
+    { value: "video", label: "Video", icon: "fa-circle-play" },
+    { value: "tutorial", label: "Tutorial / guide", icon: "fa-graduation-cap" },
+    { value: "other", label: "Other", icon: "fa-folder-open" }
+];
+
+const RES_REPORT_REASONS = ["Spam", "Inappropriate", "Copyright / leaked exam", "Misleading or broken", "Other"];
+const RES_REPORTED_KEY = "campusconnect_res_reported";
+
+let resPosts = [];
+let resFilter = "all";
+let resSearch = "";
+let resCourse = "";
+let resKind = "";
+let resLoaded = false;
+let resError = false;
+
+
+function verifyNoticeHTML() {
+
+    if (ctx.getUser()?.emailVerified) return "";
+
+    return `
+        <div class="safety-note info"><i class="fa-solid fa-envelope-circle-check"></i>
+            <span><strong>Verify your email to post.</strong> Browsing is open to everyone, but posting needs a verified email so students can trust who shared what. Check your inbox (and spam) for the link, then tap "I've verified".</span>
+        </div>
+        <div class="cl-actions">
+            <button type="button" class="btn secondary" data-cl="verify-send"><i class="fa-solid fa-paper-plane"></i> Send verification email</button>
+            <button type="button" class="btn primary" data-cl="verify-check"><i class="fa-solid fa-check"></i> I've verified</button>
+        </div>`;
+}
+
+
+function resReportedSet() {
+
+    try {
+        return new Set(JSON.parse(localStorage.getItem(RES_REPORTED_KEY) || "[]"));
+    } catch {
+        return new Set();
+    }
+}
+
+
+function resRememberReported(id) {
+
+    const set = resReportedSet();
+    set.add(id);
+
+    try {
+        localStorage.setItem(RES_REPORTED_KEY, JSON.stringify([...set].slice(-200)));
+    } catch {
+        /* ignore */
+    }
+}
+
+
+function safeHttpUrl(value) {
+
+    try {
+        const url = new URL(String(value || ""));
+        return url.protocol === "https:" || url.protocol === "http:" ? url.href : "";
+    } catch {
+        return "";
+    }
+}
+
+
+function resVotes(post) {
+    return Array.isArray(post.voters) ? post.voters.length : 0;
+}
+
+
+function resMatches(post) {
+
+    const me = ctx.getUser()?.uid;
+
+    if (resFilter === "mine" && post.uid !== me) return false;
+    if (resCourse && post.course !== resCourse) return false;
+    if (resKind && post.kind !== resKind) return false;
+
+    if (resSearch) {
+        const haystack = `${post.title} ${post.description} ${post.course} ${post.posterName}`.toLowerCase();
+        if (!haystack.includes(resSearch.toLowerCase())) return false;
+    }
+
+    return true;
+}
+
+
+function resCard(post) {
+
+    const me = ctx.getUser()?.uid;
+    const mine = post.uid === me;
+    const kind = RES_KINDS.find(k => k.value === post.kind) || RES_KINDS[RES_KINDS.length - 1];
+    const url = safeHttpUrl(post.url);
+    const votes = resVotes(post);
+    const voted = Array.isArray(post.voters) && post.voters.includes(me);
+    const host = url ? new URL(url).hostname.replace(/^www\./, "") : "";
+
+    return `
+        <article class="res-card" data-res="${esc(post.id)}">
+            <button type="button" class="vote-btn ${voted ? "on" : ""}" data-cl="res-vote" data-id="${esc(post.id)}" aria-pressed="${voted}" aria-label="${voted ? "Remove your upvote" : "Upvote"}">
+                <i class="fa-solid fa-chevron-up"></i><b>${votes}</b>
+            </button>
+            <div class="res-main">
+                <div class="lf-top">
+                    <span class="cl-badge neutral"><i class="fa-solid ${kind.icon}"></i> ${esc(kind.label)}</span>
+                    ${post.course ? `<span class="tag">${esc(post.course)}</span>` : ""}
+                    <small>${esc(timeAgo(post.createdAt))}${mine ? " · your post" : ""}</small>
+                </div>
+                <h4>${url ? `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer nofollow">${esc(post.title)}</a>` : esc(post.title)}</h4>
+                ${post.description ? `<p>${esc(post.description)}</p>` : ""}
+                <div class="lf-meta">
+                    ${host ? `<span><i class="fa-solid fa-link"></i> ${esc(host)}</span>` : ""}
+                    <span><i class="fa-solid fa-user"></i> ${esc(post.posterName || "Student")}</span>
+                </div>
+                <div class="lf-actions">
+                    ${url ? `<a class="btn secondary compact" href="${esc(url)}" target="_blank" rel="noopener noreferrer nofollow"><i class="fa-solid fa-arrow-up-right-from-square"></i> Open</a>` : ""}
+                    ${mine || isAdmin
+                        ? `<button type="button" class="btn secondary compact danger-text" data-cl="res-delete" data-id="${esc(post.id)}"><i class="fa-solid fa-trash"></i> ${mine ? "Delete" : "Remove (admin)"}</button>`
+                        : ""}
+                    ${mine ? "" : `<button type="button" class="btn secondary compact" data-cl="res-report" data-id="${esc(post.id)}"><i class="fa-solid fa-flag"></i> Report</button>`}
+                </div>
+            </div>
+        </article>
+    `;
+}
+
+
+function resListHTML() {
+
+    if (resError) {
+        return emptyState("fa-cloud-bolt", "Couldn't load resources", "Check your connection. If this keeps happening, the latest Firestore rules may not be published yet.");
+    }
+
+    if (!resLoaded) return `<p class="cl-muted">Loading resources…</p>`;
+
+    const reported = resReportedSet();
+    const visible = resPosts.filter(post => !reported.has(post.id) && resMatches(post));
+
+    if (resFilter === "top") {
+        visible.sort((a, b) => resVotes(b) - resVotes(a));
+    }
+
+    if (!visible.length) {
+        return emptyState("fa-book-open-reader", "No resources yet",
+            resFilter === "mine"
+                ? "You haven't shared anything. Share a link, notes or a past paper to help others."
+                : "Nothing matches. Be the first to share something useful for your course.");
+    }
+
+    return `<div class="res-list">${visible.map(resCard).join("")}</div>`;
+}
+
+
+function renderResources() {
+
+    const courseCodes = [...new Set([
+        ...ctx.getCourses().map(c => c.code),
+        ...resPosts.map(p => p.course).filter(Boolean)
+    ])].sort();
+
+    return `
+        ${verifyNoticeHTML()}
+        <div class="cl-actions">
+            <button type="button" class="btn primary" data-cl="res-post"><i class="fa-solid fa-share-nodes"></i> Share a resource</button>
+        </div>
+
+        <div class="safety-note"><i class="fa-solid fa-shield-halved"></i>
+            <span><strong>Share responsibly:</strong> only post material you have the right to share. Leaked exams and copyrighted books will be removed. Check links before opening them, and use "Report" for anything that looks wrong.</span>
+        </div>
+
+        <div class="panel">
+            <div class="lf-filters">
+                <div class="seg">
+                    ${[["all", "Newest"], ["top", "Top voted"], ["mine", "My shares"]].map(([value, label]) =>
+                        `<button type="button" class="${resFilter === value ? "active" : ""}" data-cl="res-filter" data-val="${value}">${label}</button>`).join("")}
+                </div>
+                <input id="resSearch" type="search" placeholder="Search resources…" value="${esc(resSearch)}" aria-label="Search resources">
+                <select id="resCourse" aria-label="Filter by course">
+                    <option value="">All courses</option>
+                    ${courseCodes.map(c => `<option value="${esc(c)}" ${c === resCourse ? "selected" : ""}>${esc(c)}</option>`).join("")}
+                </select>
+                <select id="resKind" aria-label="Filter by type">
+                    <option value="">All types</option>
+                    ${RES_KINDS.map(k => `<option value="${esc(k.value)}" ${k.value === resKind ? "selected" : ""}>${esc(k.label)}</option>`).join("")}
+                </select>
+            </div>
+            <div id="resList">${resListHTML()}</div>
+        </div>
+    `;
+}
+
+
+function refreshResources() {
+
+    if (activeTab !== "resources") return;
+
+    const list = document.getElementById("resList");
+
+    if (list) list.innerHTML = resListHTML();
+    else renderAll();
+}
+
+
+async function postResource() {
+
+    const user = ctx.getUser();
+
+    if (!user) {
+        ctx.showToast("Sign in to share.", "error");
+        return;
+    }
+
+    if (!user.emailVerified) {
+        ctx.showToast("Verify your email first. Use the buttons at the top of this tab.", "error");
+        return;
+    }
+
+    const values = await askForm({
+        eyebrow: "RESOURCES",
+        title: "Share a resource",
+        submit: "Share",
+        fields: [
+            { name: "title", label: "Title", required: true, max: 100, placeholder: "e.g. Database normalisation cheat sheet" },
+            { name: "kind", label: "Type", type: "select", options: RES_KINDS.map(k => ({ value: k.value, label: k.label })) },
+            { name: "course", label: "Course", type: "select", options: courseOptions() },
+            { name: "url", label: "Link (optional)", max: 300, placeholder: "https://…" },
+            { name: "description", label: "What is it and why is it useful?", type: "textarea", max: 500 },
+            { name: "showName", label: "Show my name", type: "select", options: [{ value: "yes", label: "Yes, show my name" }, { value: "no", label: "No, post as Anonymous student" }] }
+        ]
+    });
+
+    if (!values) return;
+
+    let url = (values.url || "").trim();
+
+    if (url && !/^https?:\/\//i.test(url)) url = "https://" + url;
+
+    if (url && !safeHttpUrl(url)) {
+        ctx.showToast("That link doesn't look right.", "error");
+        return;
+    }
+
+    const description = (values.description || "").trim();
+
+    if (!url && !description) {
+        ctx.showToast("Add a link or a short description.", "error");
+        return;
+    }
+
+    try {
+        await setDoc(doc(collection(ctx.db, "resources")), {
+            title: values.title.trim().slice(0, 100),
+            kind: values.kind,
+            course: values.course || "",
+            url: url.slice(0, 300),
+            description: description.slice(0, 500),
+            posterName: values.showName === "no" ? "Anonymous student" : String(ctx.getDisplayName()).slice(0, 40),
+            uid: user.uid,
+            voters: [],
+            createdAt: serverTimestamp()
+        });
+        resFilter = "all";
+        ctx.showToast("Shared. Thanks for helping your classmates.", "success");
+    } catch (error) {
+        console.error("Resource post failed:", error);
+        ctx.showToast("Could not share. Check your connection, your verified email and that the latest rules are published.", "error");
+    }
+}
+
+
+async function resVote(id) {
+
+    const user = ctx.getUser();
+    const post = resPosts.find(p => p.id === id);
+
+    if (!user || !post) return;
+
+    if (!user.emailVerified) {
+        ctx.showToast("Verify your email to vote.", "error");
+        return;
+    }
+
+    const voted = Array.isArray(post.voters) && post.voters.includes(user.uid);
+
+    try {
+        await updateDoc(doc(ctx.db, "resources", id), { voters: voted ? arrayRemove(user.uid) : arrayUnion(user.uid) });
+    } catch (error) {
+        console.error(error);
+        ctx.showToast("Could not save your vote.", "error");
+    }
+}
+
+
+async function resDelete(id) {
+
+    const post = resPosts.find(p => p.id === id);
+    const user = ctx.getUser();
+
+    if (!post || !user || (post.uid !== user.uid && !isAdmin)) return;
+
+    if (!window.confirm(post.uid === user.uid ? "Delete this resource for everyone?" : "Remove this resource for everyone?")) return;
+
+    try {
+        await deleteDoc(doc(ctx.db, "resources", id));
+        ctx.showToast("Resource removed.", "success");
+    } catch (error) {
+        console.error(error);
+        ctx.showToast("Could not remove it.", "error");
+    }
+}
+
+
+async function resReport(id) {
+
+    const user = ctx.getUser();
+
+    if (!user) return;
+
+    const values = await askForm({
+        eyebrow: "RESOURCES",
+        title: "Report this resource",
+        submit: "Report",
+        fields: [{ name: "reason", label: "What's wrong with it?", type: "select", options: RES_REPORT_REASONS }]
+    });
+
+    if (!values) return;
+
+    try {
+        await setDoc(doc(ctx.db, "resreports", `${id}_${user.uid}`), {
+            postId: id, uid: user.uid, reason: values.reason, createdAt: serverTimestamp()
+        });
+    } catch (error) {
+        console.warn("Report could not be sent:", error);
+    }
+
+    resRememberReported(id);
+    refreshResources();
+    ctx.showToast("Thanks. It's hidden for you and flagged for review.", "success");
+}
+
+
+/* =====================================================
    SUPPORT: MENTAL WELLBEING
    ===================================================== */
 
@@ -2170,6 +2517,9 @@ function stopLive() {
     lfPosts = [];
     lfLoaded = false;
     lfError = false;
+    resPosts = [];
+    resLoaded = false;
+    resError = false;
     menus = {};
     menuLoaded = false;
     isAdmin = false;
@@ -2203,12 +2553,34 @@ function startLive(user) {
         lfError = true;
     }
 
+    try {
+        live.unsubs.push(onSnapshot(
+            query(collection(ctx.db, "resources"), orderBy("createdAt", "desc"), limit(150)),
+            snapshot => {
+                resPosts = snapshot.docs.map(item => ({ ...item.data({ serverTimestamps: "estimate" }), id: item.id }));
+                resLoaded = true;
+                resError = false;
+                refreshResources();
+            },
+            error => {
+                console.warn("Resources listener error:", error?.code || error);
+                resLoaded = true;
+                resError = true;
+                refreshResources();
+            }
+        ));
+    } catch (error) {
+        console.warn("Could not listen for resources:", error);
+        resLoaded = true;
+        resError = true;
+    }
+
     subscribeMenus();
 
     getDoc(doc(ctx.db, "admins", user.uid))
         .then(snapshot => {
             isAdmin = snapshot.exists();
-            if (activeTab === "cafeteria") renderAll();
+            if (activeTab === "cafeteria" || activeTab === "resources") renderAll();
         })
         .catch(() => { isAdmin = false; });
 }
@@ -2225,6 +2597,7 @@ const RENDERERS = {
     budget: renderBudget,
     cafeteria: renderCafeteria,
     lostfound: renderLostFound,
+    resources: renderResources,
     services: renderServices,
     wellness: renderWellness,
     events: renderEvents,
@@ -2369,6 +2742,11 @@ function handleAction(button) {
                 () => ctx.showToast("Could not check right now. Check your connection.", "error")
             );
             break;
+        case "res-post": postResource(); break;
+        case "res-vote": resVote(id); break;
+        case "res-delete": resDelete(id); break;
+        case "res-report": resReport(id); break;
+        case "res-filter": resFilter = button.dataset.val; renderAll(); break;
         case "lf-post-lost": postLostFound("lost"); break;
         case "lf-post-found": postLostFound("found"); break;
         case "lf-filter": lfFilter = button.dataset.val; renderAll(); break;
@@ -2452,12 +2830,27 @@ export function initCampus(context) {
             lfSearch = event.target.value;
             refreshLostFound();
         }
+
+        if (event.target.id === "resSearch") {
+            resSearch = event.target.value;
+            refreshResources();
+        }
     });
 
     page?.addEventListener("change", event => {
         if (event.target.id === "lfCategory") {
             lfCategory = event.target.value;
             refreshLostFound();
+        }
+
+        if (event.target.id === "resCourse") {
+            resCourse = event.target.value;
+            refreshResources();
+        }
+
+        if (event.target.id === "resKind") {
+            resKind = event.target.value;
+            refreshResources();
         }
     });
 
