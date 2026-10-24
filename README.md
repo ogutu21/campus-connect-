@@ -63,6 +63,9 @@ lostfound/{postId}        (shared; only the author can edit or delete)
 lfreports/{postId_uid}    (write-only for students; staff review in the console)
 resources/{id}            (shared resource library; voters = list of uids)
 resreports/{postId_uid}   (write-only for students; staff review in the console)
+tutors/{uid}              (one tutor listing per student)
+tutors/{uid}/requests/{senderUid}  (help requests; readable only by the tutor and the sender)
+tutorreports/{postId_uid} (write-only for students; staff review in the console)
 menus/{yyyy-mm-dd}        (cafeteria menus; staff only can write)
 admins/{uid}              (approves staff accounts; managed in the console)
 ```
@@ -181,3 +184,11 @@ Students share links, notes, past papers, videos and guides by course. Everyone 
 - **Upvotes** are stored as a `voters` list of user IDs on each post. The rules only allow a user to add or remove their own ID.
 - **Moderation:** any student can **Report** a post (it is hidden for them and a document is written to `resreports` for staff to review in the Firebase Console). Authors can delete their own posts, and approved staff (users with a document in `admins`) get a "Remove (admin)" button on any post.
 - **Republish `firestore.rules`** after updating: the new `resources` and `resreports` collections are denied until you do.
+
+## Tutor directory (Campus Life > Tutors)
+
+Students offer help in subjects they are strong in and others ask them for help. Everyone signed in can browse and filter; listing and requesting need a verified email.
+- **Contact details are private.** A listing never shows an email or phone number. A student sends a request with their own contact details, and only the tutor (and the sender) can read it. Tutors manage requests in the inbox at the top of the tab (mark seen or done, delete).
+- **One open request per tutor.** The request document ID is the sender's user ID, so a student cannot flood a tutor. They can cancel and send a new one.
+- **Moderation:** any student can **Report** a listing (hidden for them, recorded in `tutorreports`). Approved staff (a document in `admins`) get a "Remove (admin)" button.
+- **Republish `firestore.rules`** after updating: the new `tutors` and `tutorreports` collections are denied until you do.

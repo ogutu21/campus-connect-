@@ -32,6 +32,7 @@ const TABS = [
     { id: "exams", label: "Exams", icon: "fa-file-pen" },
     { id: "library", label: "Library", icon: "fa-book-bookmark" },
     { id: "resources", label: "Resources", icon: "fa-book-open-reader" },
+    { id: "tutors", label: "Tutors", icon: "fa-chalkboard-user" },
     { id: "budget", label: "Budget", icon: "fa-wallet" },
     { id: "cafeteria", label: "Cafeteria", icon: "fa-utensils" },
     { id: "lostfound", label: "Lost &amp; Found", icon: "fa-magnifying-glass-location" },
@@ -2314,6 +2315,492 @@ async function resReport(id) {
 
 
 /* =====================================================
+   TUTOR DIRECTORY (shared between students, live)
+   One listing per student (tutors/{uid}). Contact details are never public:
+   a student sends a request (tutors/{uid}/requests/{senderUid}) that only the
+   tutor and the sender can read. Posting and requesting need a verified email.
+   ===================================================== */
+
+const TUTOR_MODES = [
+    { value: "online", label: "Online", icon: "fa-video" },
+    { value: "in-person", label: "In person", icon: "fa-person-chalkboard" },
+    { value: "both", label: "Online or in person", icon: "fa-handshake" }
+];
+
+const TUTOR_REPORT_REASONS = ["Spam", "Inappropriate", "Misleading or fake", "Asked for money upfront", "Other"];
+const TUTOR_REPORTED_KEY = "campusconnect_tutor_reported";
+const TUTOR_REQUESTED_KEY = "campusconnect_tutor_requested";
+const MAX_TUTOR_SUBJECTS = 8;
+
+let tutorPosts = [];
+let tutorInbox = [];
+let tutorSearch = "";
+let tutorSubject = "";
+let tutorMode = "";
+let tutorLoaded = false;
+let tutorError = false;
+
+
+function localIdSet(key) {
+
+    try {
+        return new Set(JSON.parse(localStorage.getItem(key) || "[]"));
+    } catch {
+        return new Set();
+    }
+}
+
+
+function localIdSave(key, set) {
+
+    try {
+        localStorage.setItem(key, JSON.stringify([...set].slice(-200)));
+    } catch {
+        /* ignore */
+    }
+}
+
+
+function tutorSubjects(post) {
+
+    return String(post.subjects || "")
+        .split(",")
+        .map(subject => subject.trim())
+        .filter(Boolean)
+        .slice(0, MAX_TUTOR_SUBJECTS);
+}
+
+
+function myTutorProfile() {
+
+    const me = ctx.getUser()?.uid;
+
+    return me ? tutorPosts.find(post => post.id === me) : null;
+}
+
+
+function tutorMatches(post) {
+
+    const me = ctx.getUser()?.uid;
+    const mine = post.id === me;
+
+    if (post.active === false && !mine) return false;
+    if (tutorMode && post.mode !== tutorMode && post.mode !== "both") return false;
+
+    if (tutorSubject && !tutorSubjects(post).some(subject => subject.toLowerCase() === tutorSubject.toLowerCase())) return false;
+
+    if (tutorSearch) {
+        const haystack = `${post.displayName} ${post.subjects} ${post.bio}`.toLowerCase();
+        if (!haystack.includes(tutorSearch.toLowerCase())) return false;
+    }
+
+    return true;
+}
+
+
+function initialsOf(name) {
+
+    return String(name || "?").split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0].toUpperCase()).join("") || "?";
+}
+
+
+function tutorCard(post) {
+
+    const me = ctx.getUser()?.uid;
+    const mine = post.id === me;
+    const paused = post.active === false;
+    const mode = TUTOR_MODES.find(m => m.value === post.mode) || TUTOR_MODES[2];
+    const requested = localIdSet(TUTOR_REQUESTED_KEY).has(post.id);
+
+    return `
+        <article class="res-card tutor-card ${paused ? "paused" : ""}" data-tutor="${esc(post.id)}">
+            <div class="tutor-avatar" aria-hidden="true">${esc(initialsOf(post.displayName))}</div>
+            <div class="res-main">
+                <div class="lf-top">
+                    <span class="cl-badge neutral"><i class="fa-solid ${mode.icon}"></i> ${esc(mode.label)}</span>
+                    ${paused ? `<span class="cl-badge late">Paused</span>` : ""}
+                    <small>${esc(timeAgo(post.updatedAt))}${mine ? " · your listing" : ""}</small>
+                </div>
+                <h4>${esc(post.displayName)}</h4>
+                <div class="tutor-subjects">${tutorSubjects(post).map(subject => `<span class="tag">${esc(subject)}</span>`).join("")}</div>
+                <p>${esc(post.bio)}</p>
+                <div class="lf-meta">
+                    ${post.availability ? `<span><i class="fa-regular fa-clock"></i> ${esc(post.availability)}</span>` : ""}
+                    ${post.rate ? `<span><i class="fa-solid fa-tag"></i> ${esc(post.rate)}</span>` : ""}
+                </div>
+                <div class="lf-actions">
+                    ${mine ? `
+                        <button type="button" class="btn secondary compact" data-cl="tutor-edit"><i class="fa-solid fa-pen"></i> Edit</button>
+                        <button type="button" class="btn secondary compact" data-cl="tutor-toggle"><i class="fa-solid ${paused ? "fa-play" : "fa-pause"}"></i> ${paused ? "Resume listing" : "Pause listing"}</button>
+                        <button type="button" class="btn secondary compact danger-text" data-cl="tutor-remove" data-id="${esc(post.id)}"><i class="fa-solid fa-trash"></i> Remove</button>`
+                    : `
+                        ${requested
+                            ? `<button type="button" class="btn secondary compact" data-cl="tutor-cancel" data-id="${esc(post.id)}"><i class="fa-solid fa-check"></i> Request sent · Cancel</button>`
+                            : `<button type="button" class="btn primary compact" data-cl="tutor-request" data-id="${esc(post.id)}"><i class="fa-solid fa-paper-plane"></i> Request help</button>`}
+                        <button type="button" class="btn secondary compact" data-cl="tutor-report" data-id="${esc(post.id)}"><i class="fa-solid fa-flag"></i> Report</button>
+                        ${isAdmin ? `<button type="button" class="btn secondary compact danger-text" data-cl="tutor-remove" data-id="${esc(post.id)}"><i class="fa-solid fa-trash"></i> Remove (admin)</button>` : ""}`}
+                </div>
+            </div>
+        </article>
+    `;
+}
+
+
+function tutorListHTML() {
+
+    if (tutorError) {
+        return emptyState("fa-cloud-bolt", "Couldn't load tutors", "Check your connection. If this keeps happening, the latest Firestore rules may not be published yet.");
+    }
+
+    if (!tutorLoaded) return `<p class="cl-muted">Loading tutors…</p>`;
+
+    const reported = localIdSet(TUTOR_REPORTED_KEY);
+    const me = ctx.getUser()?.uid;
+    const visible = tutorPosts.filter(post => (post.id === me || !reported.has(post.id)) && tutorMatches(post));
+
+    if (!visible.length) {
+        return emptyState("fa-chalkboard-user", "No tutors found",
+            tutorPosts.length ? "Nothing matches your filters. Try another subject or search." : "Nobody is listed yet. Be the first to offer help in a subject you're strong in.");
+    }
+
+    return `<div class="res-list">${visible.map(tutorCard).join("")}</div>`;
+}
+
+
+function tutorInboxHTML() {
+
+    const mine = myTutorProfile();
+
+    if (!mine && !tutorInbox.length) return "";
+
+    const open = tutorInbox.filter(request => request.status !== "done").length;
+
+    return `
+        <div class="panel">
+            <div class="panel-head"><div><p class="eyebrow">YOUR INBOX</p><h3>Help requests${open ? ` (${open} open)` : ""}</h3></div></div>
+            ${tutorInbox.length ? tutorInbox.map(request => `
+                <div class="cl-row stack">
+                    <div class="cl-top">
+                        <strong>${esc(request.fromName || "Student")}${request.subject ? ` · ${esc(request.subject)}` : ""}</strong>
+                        <span class="cl-badge ${request.status === "done" ? "present" : request.status === "seen" ? "neutral" : "late"}">${esc(request.status || "new")}</span>
+                    </div>
+                    <p class="journal-text">${esc(request.message)}</p>
+                    <div class="lf-contact"><i class="fa-solid fa-user"></i> Reach them: ${contactLink(request.contact)} · <small>${esc(timeAgo(request.createdAt))}</small></div>
+                    <div class="lf-actions">
+                        ${request.status === "done"
+                            ? `<button type="button" class="btn secondary compact" data-cl="tutor-req-status" data-id="${esc(request.id)}" data-val="new">Reopen</button>`
+                            : `<button type="button" class="btn primary compact" data-cl="tutor-req-status" data-id="${esc(request.id)}" data-val="done"><i class="fa-solid fa-check"></i> Mark done</button>
+                               ${request.status === "new" ? `<button type="button" class="btn secondary compact" data-cl="tutor-req-status" data-id="${esc(request.id)}" data-val="seen">Mark seen</button>` : ""}`}
+                        <button type="button" class="btn secondary compact danger-text" data-cl="tutor-req-del" data-id="${esc(request.id)}"><i class="fa-solid fa-trash"></i> Delete</button>
+                    </div>
+                </div>`).join("") : `<p class="cl-muted">No requests yet. When someone asks for help, it appears here.</p>`}
+        </div>
+    `;
+}
+
+
+function renderTutors() {
+
+    const mine = myTutorProfile();
+
+    const subjectPool = [...new Set([
+        ...ctx.getCourses().map(course => course.code),
+        ...tutorPosts.filter(post => post.active !== false).flatMap(tutorSubjects)
+    ])].sort((a, b) => a.localeCompare(b));
+
+    return `
+        ${verifyNoticeHTML()}
+        <div class="cl-actions">
+            <button type="button" class="btn primary" data-cl="tutor-edit"><i class="fa-solid fa-chalkboard-user"></i> ${mine ? "Edit my tutor listing" : "Offer to tutor"}</button>
+        </div>
+
+        <div class="safety-note"><i class="fa-solid fa-shield-halved"></i>
+            <span><strong>Stay safe:</strong> tutors are fellow students, not vetted staff. Meet in busy campus spots or online, never pay money in advance, and don't share passwords or ID numbers. Use "Report" if someone asks for anything that feels wrong.</span>
+        </div>
+
+        ${tutorInboxHTML()}
+
+        <div class="panel">
+            <div class="lf-filters">
+                <input id="tutorSearch" type="search" placeholder="Search tutors or subjects…" value="${esc(tutorSearch)}" aria-label="Search tutors">
+                <select id="tutorSubject" aria-label="Filter by subject">
+                    <option value="">All subjects</option>
+                    ${subjectPool.map(subject => `<option value="${esc(subject)}" ${subject === tutorSubject ? "selected" : ""}>${esc(subject)}</option>`).join("")}
+                </select>
+                <select id="tutorMode" aria-label="Filter by how">
+                    <option value="">Online or in person</option>
+                    ${TUTOR_MODES.filter(m => m.value !== "both").map(m => `<option value="${esc(m.value)}" ${m.value === tutorMode ? "selected" : ""}>${esc(m.label)}</option>`).join("")}
+                </select>
+            </div>
+            <div id="tutorList">${tutorListHTML()}</div>
+        </div>
+    `;
+}
+
+
+function refreshTutorList() {
+
+    if (activeTab !== "tutors") return;
+
+    const list = document.getElementById("tutorList");
+
+    if (list) list.innerHTML = tutorListHTML();
+    else renderAll();
+}
+
+
+function refreshTutors() {
+
+    if (activeTab !== "tutors") return;
+
+    // Re-render everything unless the student is typing in the search box.
+    if (document.activeElement?.id === "tutorSearch") refreshTutorList();
+    else renderAll();
+}
+
+
+function requireVerified(message) {
+
+    const user = ctx.getUser();
+
+    if (!user) {
+        ctx.showToast("Sign in first.", "error");
+        return null;
+    }
+
+    if (!user.emailVerified) {
+        ctx.showToast(message, "error");
+        return null;
+    }
+
+    return user;
+}
+
+
+async function editTutorProfile() {
+
+    const user = requireVerified("Verify your email first. Use the buttons at the top of this tab.");
+
+    if (!user) return;
+
+    const existing = myTutorProfile();
+
+    const values = await askForm({
+        eyebrow: "TUTORS",
+        title: existing ? "Edit my tutor listing" : "Offer to tutor",
+        submit: "Save listing",
+        fields: [
+            { name: "subjects", label: "Subjects or course codes (separate with commas)", required: true, max: 300, value: existing?.subjects || "", placeholder: "e.g. COSC 212, Calculus I, Python" },
+            { name: "bio", label: "About you and how you help", type: "textarea", required: true, max: 500, value: existing?.bio || "" },
+            { name: "mode", label: "How can you help?", type: "select", options: TUTOR_MODES.map(m => ({ value: m.value, label: m.label })), value: existing?.mode || "both" },
+            { name: "availability", label: "When are you free?", max: 100, value: existing?.availability || "", placeholder: "e.g. Weekday evenings, Saturday mornings" },
+            { name: "rate", label: "Rate", max: 40, value: existing?.rate || "Free", placeholder: "Free, or e.g. KSh 300/hour" }
+        ]
+    });
+
+    if (!values) return;
+
+    const seen = new Set();
+    const subjects = values.subjects
+        .split(",")
+        .map(subject => subject.trim().slice(0, 40))
+        .filter(subject => subject && !seen.has(subject.toLowerCase()) && seen.add(subject.toLowerCase()))
+        .slice(0, MAX_TUTOR_SUBJECTS)
+        .join(", ");
+
+    const bio = values.bio.trim();
+
+    if (!subjects || !bio) {
+        ctx.showToast("Add at least one subject and a short description.", "error");
+        return;
+    }
+
+    try {
+        await setDoc(doc(ctx.db, "tutors", user.uid), {
+            displayName: String(ctx.getDisplayName()).slice(0, 40),
+            subjects: subjects.slice(0, 300),
+            bio: bio.slice(0, 500),
+            mode: values.mode,
+            availability: (values.availability || "").trim().slice(0, 100),
+            rate: (values.rate || "").trim().slice(0, 40),
+            active: existing ? existing.active !== false : true,
+            updatedAt: serverTimestamp()
+        });
+        ctx.showToast(existing ? "Listing updated." : "You're listed. Students can now ask you for help.", "success");
+    } catch (error) {
+        console.error("Tutor listing failed:", error);
+        ctx.showToast("Could not save. Check your connection, your verified email and that the latest rules are published.", "error");
+    }
+}
+
+
+async function toggleTutorListing() {
+
+    const user = ctx.getUser();
+    const mine = myTutorProfile();
+
+    if (!user || !mine) return;
+
+    try {
+        await updateDoc(doc(ctx.db, "tutors", user.uid), { active: mine.active === false, updatedAt: serverTimestamp() });
+        ctx.showToast(mine.active === false ? "Your listing is visible again." : "Listing paused. Students won't see it until you resume.", "success");
+    } catch (error) {
+        console.error(error);
+        ctx.showToast("Could not update your listing.", "error");
+    }
+}
+
+
+async function removeTutorListing(id) {
+
+    const user = ctx.getUser();
+
+    if (!user || (id !== user.uid && !isAdmin)) return;
+
+    if (!window.confirm(id === user.uid ? "Remove your tutor listing? Requests you've received stay in your inbox." : "Remove this tutor listing for everyone?")) return;
+
+    try {
+        await deleteDoc(doc(ctx.db, "tutors", id));
+        ctx.showToast("Listing removed.", "success");
+    } catch (error) {
+        console.error(error);
+        ctx.showToast("Could not remove it.", "error");
+    }
+}
+
+
+async function requestTutor(id) {
+
+    const user = requireVerified("Verify your email first. Use the buttons at the top of this tab.");
+    const tutor = tutorPosts.find(post => post.id === id);
+
+    if (!user || !tutor) return;
+
+    if (id === user.uid) return;
+
+    const subjects = tutorSubjects(tutor);
+
+    const values = await askForm({
+        eyebrow: "TUTORS",
+        title: `Ask ${tutor.displayName} for help`,
+        submit: "Send request",
+        fields: [
+            { name: "subject", label: "Subject", type: "select", options: [...subjects, "Something else"] },
+            { name: "message", label: "What do you need help with?", type: "textarea", required: true, max: 300, placeholder: "e.g. I'm struggling with normalisation before my CAT on Friday." },
+            { name: "contact", label: "How should they reach you? (only they will see this)", required: true, max: 100, value: user.email || "", placeholder: "Email or phone number" }
+        ]
+    });
+
+    if (!values) return;
+
+    try {
+        await setDoc(doc(ctx.db, "tutors", id, "requests", user.uid), {
+            fromUid: user.uid,
+            fromName: String(ctx.getDisplayName()).slice(0, 40),
+            subject: String(values.subject || "").slice(0, 40),
+            message: values.message.trim().slice(0, 300),
+            contact: values.contact.trim().slice(0, 100),
+            status: "new",
+            createdAt: serverTimestamp()
+        });
+
+        const requested = localIdSet(TUTOR_REQUESTED_KEY);
+        requested.add(id);
+        localIdSave(TUTOR_REQUESTED_KEY, requested);
+
+        refreshTutors();
+        ctx.showToast("Request sent. They'll contact you using the details you gave.", "success");
+    } catch (error) {
+        console.error("Tutor request failed:", error);
+        ctx.showToast("Could not send. You may already have a request open with this tutor: cancel it first to send a new one.", "error");
+    }
+}
+
+
+async function cancelTutorRequest(id) {
+
+    const user = ctx.getUser();
+
+    if (!user) return;
+
+    try {
+        await deleteDoc(doc(ctx.db, "tutors", id, "requests", user.uid));
+    } catch (error) {
+        console.warn("Could not cancel the request:", error);
+    }
+
+    const requested = localIdSet(TUTOR_REQUESTED_KEY);
+    requested.delete(id);
+    localIdSave(TUTOR_REQUESTED_KEY, requested);
+
+    refreshTutors();
+    ctx.showToast("Request cancelled.", "success");
+}
+
+
+async function updateTutorRequest(id, status) {
+
+    const user = ctx.getUser();
+
+    if (!user || !["new", "seen", "done"].includes(status)) return;
+
+    try {
+        await updateDoc(doc(ctx.db, "tutors", user.uid, "requests", id), { status });
+    } catch (error) {
+        console.error(error);
+        ctx.showToast("Could not update the request.", "error");
+    }
+}
+
+
+async function deleteTutorRequest(id) {
+
+    const user = ctx.getUser();
+
+    if (!user || !window.confirm("Delete this request?")) return;
+
+    try {
+        await deleteDoc(doc(ctx.db, "tutors", user.uid, "requests", id));
+    } catch (error) {
+        console.error(error);
+        ctx.showToast("Could not delete the request.", "error");
+    }
+}
+
+
+async function reportTutor(id) {
+
+    const user = ctx.getUser();
+
+    if (!user) return;
+
+    const values = await askForm({
+        eyebrow: "TUTORS",
+        title: "Report this listing",
+        submit: "Report",
+        fields: [{ name: "reason", label: "What's wrong with it?", type: "select", options: TUTOR_REPORT_REASONS }]
+    });
+
+    if (!values) return;
+
+    try {
+        await setDoc(doc(ctx.db, "tutorreports", `${id}_${user.uid}`), {
+            postId: id, uid: user.uid, reason: values.reason, createdAt: serverTimestamp()
+        });
+    } catch (error) {
+        console.warn("Report could not be sent:", error);
+    }
+
+    const reported = localIdSet(TUTOR_REPORTED_KEY);
+    reported.add(id);
+    localIdSave(TUTOR_REPORTED_KEY, reported);
+
+    refreshTutors();
+    ctx.showToast("Thanks. It's hidden for you and flagged for review.", "success");
+}
+
+
+/* =====================================================
    SUPPORT: MENTAL WELLBEING
    ===================================================== */
 
@@ -2520,6 +3007,10 @@ function stopLive() {
     resPosts = [];
     resLoaded = false;
     resError = false;
+    tutorPosts = [];
+    tutorInbox = [];
+    tutorLoaded = false;
+    tutorError = false;
     menus = {};
     menuLoaded = false;
     isAdmin = false;
@@ -2575,12 +3066,48 @@ function startLive(user) {
         resError = true;
     }
 
+    try {
+        live.unsubs.push(onSnapshot(
+            query(collection(ctx.db, "tutors"), orderBy("updatedAt", "desc"), limit(150)),
+            snapshot => {
+                tutorPosts = snapshot.docs.map(item => ({ ...item.data({ serverTimestamps: "estimate" }), id: item.id }));
+                tutorLoaded = true;
+                tutorError = false;
+                refreshTutors();
+            },
+            error => {
+                console.warn("Tutors listener error:", error?.code || error);
+                tutorLoaded = true;
+                tutorError = true;
+                refreshTutors();
+            }
+        ));
+    } catch (error) {
+        console.warn("Could not listen for tutors:", error);
+        tutorLoaded = true;
+        tutorError = true;
+    }
+
+    // Requests other students have sent to me (only I can read these).
+    try {
+        live.unsubs.push(onSnapshot(
+            query(collection(ctx.db, "tutors", user.uid, "requests"), orderBy("createdAt", "desc"), limit(50)),
+            snapshot => {
+                tutorInbox = snapshot.docs.map(item => ({ ...item.data({ serverTimestamps: "estimate" }), id: item.id }));
+                refreshTutors();
+            },
+            error => console.warn("Tutor inbox listener error:", error?.code || error)
+        ));
+    } catch (error) {
+        console.warn("Could not listen for tutor requests:", error);
+    }
+
     subscribeMenus();
 
     getDoc(doc(ctx.db, "admins", user.uid))
         .then(snapshot => {
             isAdmin = snapshot.exists();
-            if (activeTab === "cafeteria" || activeTab === "resources") renderAll();
+            if (["cafeteria", "resources", "tutors"].includes(activeTab)) renderAll();
         })
         .catch(() => { isAdmin = false; });
 }
@@ -2598,6 +3125,7 @@ const RENDERERS = {
     cafeteria: renderCafeteria,
     lostfound: renderLostFound,
     resources: renderResources,
+    tutors: renderTutors,
     services: renderServices,
     wellness: renderWellness,
     events: renderEvents,
@@ -2747,6 +3275,14 @@ function handleAction(button) {
         case "res-delete": resDelete(id); break;
         case "res-report": resReport(id); break;
         case "res-filter": resFilter = button.dataset.val; renderAll(); break;
+        case "tutor-edit": editTutorProfile(); break;
+        case "tutor-toggle": toggleTutorListing(); break;
+        case "tutor-remove": removeTutorListing(id); break;
+        case "tutor-request": requestTutor(id); break;
+        case "tutor-cancel": cancelTutorRequest(id); break;
+        case "tutor-report": reportTutor(id); break;
+        case "tutor-req-status": updateTutorRequest(id, button.dataset.val); break;
+        case "tutor-req-del": deleteTutorRequest(id); break;
         case "lf-post-lost": postLostFound("lost"); break;
         case "lf-post-found": postLostFound("found"); break;
         case "lf-filter": lfFilter = button.dataset.val; renderAll(); break;
@@ -2835,6 +3371,11 @@ export function initCampus(context) {
             resSearch = event.target.value;
             refreshResources();
         }
+
+        if (event.target.id === "tutorSearch") {
+            tutorSearch = event.target.value;
+            refreshTutorList();
+        }
     });
 
     page?.addEventListener("change", event => {
@@ -2851,6 +3392,16 @@ export function initCampus(context) {
         if (event.target.id === "resKind") {
             resKind = event.target.value;
             refreshResources();
+        }
+
+        if (event.target.id === "tutorSubject") {
+            tutorSubject = event.target.value;
+            refreshTutorList();
+        }
+
+        if (event.target.id === "tutorMode") {
+            tutorMode = event.target.value;
+            refreshTutorList();
         }
     });
 

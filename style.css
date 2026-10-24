@@ -588,3 +588,11 @@ body.dark .safety-note.info{background:rgba(99,102,241,.14);color:#c7d2fe;border
 .res-main p{margin:0 0 8px;font-size:12px;color:var(--muted);line-height:1.55;overflow-wrap:anywhere}
 .cl-badge i{margin-right:4px}
 @media(max-width:560px){.res-card{gap:10px;padding:12px}.vote-btn{width:44px}}
+
+/* =====================================================
+   TUTOR DIRECTORY
+   ===================================================== */
+.tutor-avatar{flex:none;width:48px;height:48px;border-radius:14px;display:grid;place-items:center;align-self:flex-start;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;font-weight:800;font-size:15px}
+.tutor-subjects{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 8px}
+.tutor-card.paused{opacity:.6}
+@media(max-width:560px){.tutor-avatar{width:40px;height:40px;font-size:13px}}
