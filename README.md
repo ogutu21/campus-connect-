@@ -178,7 +178,7 @@ New Firestore rules: `lostfound`, `lfreports`, `menus`, `admins` (top level) and
 
 - **Email verification:** new accounts are sent a verification email. Posting in Lost & Found requires a verified email (enforced in the UI and in `firestore.rules` through `request.auth.token.email_verified`). Accounts created before this change must verify once; the Lost & Found tab has "Send verification email" and "I've verified" buttons.
 - **Security headers:** `firebase.json` sets `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy` and `Permissions-Policy`.
-- **Content-Security-Policy:** it is currently sent as `Content-Security-Policy-Report-Only`. After deploying, open the site, use every page, and check the browser console for "Content Security Policy" warnings. When there are none, rename the header key in `firebase.json` to `Content-Security-Policy` and redeploy.
+- **Content-Security-Policy:** it is now enforced (`Content-Security-Policy`). If a new feature loads something from a new website and the browser console shows a "Refused to..." message, add that address to the matching directive in `firebase.json`. After deploying, open the site, use every page, and check the browser console for "Content Security Policy" warnings. When there are none, rename the header key in `firebase.json` to `Content-Security-Policy` and redeploy.
 - **After changing `firestore.rules`,** publish them in the Firebase Console.
 
 ## Resource library (Campus Life > Resources)
