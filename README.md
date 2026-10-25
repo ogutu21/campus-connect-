@@ -203,3 +203,7 @@ Course Q&A: students ask questions, others reply, and the asker can mark a quest
 - **Moderation:** any student can **Report** a question or a reply (hidden for them, recorded in `threadreports`). The asker can delete any reply on their question; staff in `admins` can remove any question or reply.
 - A thread's replies are loaded only while it is open. Deleting a question removes the replies that were loaded at that moment.
 - **Republish `firestore.rules`** after updating: `threads`, `replies` and `threadreports` are denied until you do.
+
+## Licence
+
+Released under the [MIT License](LICENSE).
