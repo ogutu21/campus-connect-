@@ -4,7 +4,7 @@
    - Firebase SDK, Font Awesome and fonts: stale-while-revalidate runtime cache.
    - Firestore/Auth API traffic is never touched (Firestore has its own offline cache).
 */
-const VERSION = "campusconnect-v11";
+const VERSION = "campusconnect-v12";
 const SHELL_CACHE = `${VERSION}-shell`;
 const RUNTIME_CACHE = `${VERSION}-runtime`;
 
