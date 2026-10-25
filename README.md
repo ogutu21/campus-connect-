@@ -66,6 +66,9 @@ resreports/{postId_uid}   (write-only for students; staff review in the console)
 tutors/{uid}              (one tutor listing per student)
 tutors/{uid}/requests/{senderUid}  (help requests; readable only by the tutor and the sender)
 tutorreports/{postId_uid} (write-only for students; staff review in the console)
+threads/{id}              (discussion board questions)
+threads/{id}/replies/{replyId}  (replies)
+threadreports/{postId_uid} (write-only; postId is a thread ID or "threadId.replyId")
 menus/{yyyy-mm-dd}        (cafeteria menus; staff only can write)
 admins/{uid}              (approves staff accounts; managed in the console)
 ```
@@ -192,3 +195,11 @@ Students offer help in subjects they are strong in and others ask them for help.
 - **One open request per tutor.** The request document ID is the sender's user ID, so a student cannot flood a tutor. They can cancel and send a new one.
 - **Moderation:** any student can **Report** a listing (hidden for them, recorded in `tutorreports`). Approved staff (a document in `admins`) get a "Remove (admin)" button.
 - **Republish `firestore.rules`** after updating: the new `tutors` and `tutorreports` collections are denied until you do.
+
+## Discussion board (Campus Life > Discuss)
+
+Course Q&A: students ask questions, others reply, and the asker can mark a question resolved.
+- Everyone signed in can read; asking and replying need a verified email (also enforced in the rules). Students can choose to post as "Anonymous student" (the name is hidden from others, but the post still records the account's user ID, which staff can see in the console).
+- **Moderation:** any student can **Report** a question or a reply (hidden for them, recorded in `threadreports`). The asker can delete any reply on their question; staff in `admins` can remove any question or reply.
+- A thread's replies are loaded only while it is open. Deleting a question removes the replies that were loaded at that moment.
+- **Republish `firestore.rules`** after updating: `threads`, `replies` and `threadreports` are denied until you do.

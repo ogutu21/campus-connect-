@@ -33,6 +33,7 @@ const TABS = [
     { id: "library", label: "Library", icon: "fa-book-bookmark" },
     { id: "resources", label: "Resources", icon: "fa-book-open-reader" },
     { id: "tutors", label: "Tutors", icon: "fa-chalkboard-user" },
+    { id: "discuss", label: "Discuss", icon: "fa-comments" },
     { id: "budget", label: "Budget", icon: "fa-wallet" },
     { id: "cafeteria", label: "Cafeteria", icon: "fa-utensils" },
     { id: "lostfound", label: "Lost &amp; Found", icon: "fa-magnifying-glass-location" },
@@ -2801,6 +2802,458 @@ async function reportTutor(id) {
 
 
 /* =====================================================
+   DISCUSSION BOARD (shared between students, live)
+   Course Q&A threads: threads/{id} with replies in threads/{id}/replies/{replyId}.
+   Opening a thread subscribes to its replies; closing it unsubscribes.
+   Starting a thread or replying needs a verified email.
+   ===================================================== */
+
+const DISC_REPORT_REASONS = ["Spam", "Inappropriate", "Harassment", "Misleading", "Other"];
+const DISC_REPORTED_KEY = "campusconnect_disc_reported";
+
+let discThreads = [];
+let discReplies = [];
+let discOpenId = null;
+let discFilter = "all";
+let discSearch = "";
+let discCourse = "";
+let discLoaded = false;
+let discError = false;
+let discRepliesLoaded = false;
+let discRepliesError = false;
+let discRepliesUnsub = null;
+
+
+function closeDiscRepliesListener() {
+
+    if (discRepliesUnsub) discRepliesUnsub();
+
+    discRepliesUnsub = null;
+    discReplies = [];
+    discRepliesLoaded = false;
+    discRepliesError = false;
+}
+
+
+function discMatches(thread) {
+
+    const me = ctx.getUser()?.uid;
+
+    if (discFilter === "mine" && thread.uid !== me) return false;
+    if (discFilter === "open" && thread.resolved) return false;
+    if (discCourse && thread.course !== discCourse) return false;
+
+    if (discSearch) {
+        const haystack = `${thread.title} ${thread.body} ${thread.course} ${thread.posterName}`.toLowerCase();
+        if (!haystack.includes(discSearch.toLowerCase())) return false;
+    }
+
+    return true;
+}
+
+
+function discPreview(text) {
+
+    const clean = String(text || "").replace(/\s+/g, " ").trim();
+
+    return clean.length > 160 ? clean.slice(0, 157) + "…" : clean;
+}
+
+
+function discThreadCard(thread) {
+
+    const mine = thread.uid === ctx.getUser()?.uid;
+
+    return `
+        <article class="res-card disc-card" data-thread="${esc(thread.id)}">
+            <div class="tutor-avatar" aria-hidden="true">${esc(initialsOf(thread.posterName))}</div>
+            <div class="res-main">
+                <div class="lf-top">
+                    ${thread.resolved ? `<span class="cl-badge present"><i class="fa-solid fa-circle-check"></i> Resolved</span>` : `<span class="cl-badge neutral"><i class="fa-regular fa-circle-question"></i> Open</span>`}
+                    ${thread.course ? `<span class="tag">${esc(thread.course)}</span>` : ""}
+                    <small>${esc(timeAgo(thread.createdAt))}${mine ? " · your question" : ""}</small>
+                </div>
+                <h4>${esc(thread.title)}</h4>
+                <p>${esc(discPreview(thread.body))}</p>
+                <div class="lf-meta"><span><i class="fa-solid fa-user"></i> ${esc(thread.posterName || "Student")}</span></div>
+                <div class="lf-actions">
+                    <button type="button" class="btn primary compact" data-cl="disc-open" data-id="${esc(thread.id)}"><i class="fa-solid fa-comments"></i> Open discussion</button>
+                </div>
+            </div>
+        </article>
+    `;
+}
+
+
+function discListHTML() {
+
+    if (discError) {
+        return emptyState("fa-cloud-bolt", "Couldn't load discussions", "Check your connection. If this keeps happening, the latest Firestore rules may not be published yet.");
+    }
+
+    if (!discLoaded) return `<p class="cl-muted">Loading discussions…</p>`;
+
+    const reported = localIdSet(DISC_REPORTED_KEY);
+    const me = ctx.getUser()?.uid;
+    const visible = discThreads.filter(thread => (thread.uid === me || !reported.has(thread.id)) && discMatches(thread));
+
+    if (!visible.length) {
+        return emptyState("fa-comments", "No discussions yet",
+            discThreads.length ? "Nothing matches your filters." : "Ask the first question about a course. Someone in your class probably knows the answer.");
+    }
+
+    return `<div class="res-list">${visible.map(discThreadCard).join("")}</div>`;
+}
+
+
+function discReplyCard(reply, thread) {
+
+    const me = ctx.getUser()?.uid;
+    const mine = reply.uid === me;
+    const byAsker = reply.uid === thread.uid;
+    const canDelete = mine || thread.uid === me || isAdmin;
+
+    return `
+        <div class="cl-row stack disc-reply">
+            <div class="cl-top">
+                <strong>${esc(reply.posterName || "Student")}${byAsker ? ` <span class="cl-badge neutral">Asker</span>` : ""}</strong>
+                <small>${esc(timeAgo(reply.createdAt))}${mine ? " · you" : ""}</small>
+            </div>
+            <p class="journal-text">${esc(reply.body)}</p>
+            <div class="lf-actions">
+                ${canDelete ? `<button type="button" class="btn secondary compact danger-text" data-cl="disc-reply-del" data-id="${esc(reply.id)}"><i class="fa-solid fa-trash"></i> ${mine || thread.uid === me ? "Delete" : "Remove (admin)"}</button>` : ""}
+                ${mine ? "" : `<button type="button" class="btn secondary compact" data-cl="disc-reply-report" data-id="${esc(reply.id)}"><i class="fa-solid fa-flag"></i> Report</button>`}
+            </div>
+        </div>
+    `;
+}
+
+
+function discDetailHTML() {
+
+    const thread = discThreads.find(item => item.id === discOpenId);
+
+    const back = `<div class="cl-actions"><button type="button" class="btn secondary" data-cl="disc-back"><i class="fa-solid fa-arrow-left"></i> All discussions</button></div>`;
+
+    if (!thread) {
+        return `${back}${discLoaded ? emptyState("fa-comment-slash", "This discussion is gone", "It may have been deleted by its author.") : `<p class="cl-muted">Loading…</p>`}`;
+    }
+
+    const me = ctx.getUser()?.uid;
+    const mine = thread.uid === me;
+
+    return `
+        ${verifyNoticeHTML()}
+        ${back}
+        <div class="panel">
+            <div class="lf-top">
+                ${thread.resolved ? `<span class="cl-badge present"><i class="fa-solid fa-circle-check"></i> Resolved</span>` : `<span class="cl-badge neutral"><i class="fa-regular fa-circle-question"></i> Open</span>`}
+                ${thread.course ? `<span class="tag">${esc(thread.course)}</span>` : ""}
+                <small>${esc(timeAgo(thread.createdAt))} · ${esc(thread.posterName || "Student")}</small>
+            </div>
+            <h3>${esc(thread.title)}</h3>
+            <p class="journal-text">${esc(thread.body)}</p>
+            <div class="lf-actions">
+                <button type="button" class="btn primary compact" data-cl="disc-reply"><i class="fa-solid fa-reply"></i> Write a reply</button>
+                ${mine ? `<button type="button" class="btn secondary compact" data-cl="disc-resolve"><i class="fa-solid ${thread.resolved ? "fa-rotate-left" : "fa-circle-check"}"></i> ${thread.resolved ? "Reopen" : "Mark resolved"}</button>` : ""}
+                ${mine || isAdmin ? `<button type="button" class="btn secondary compact danger-text" data-cl="disc-delete"><i class="fa-solid fa-trash"></i> ${mine ? "Delete discussion" : "Remove (admin)"}</button>` : ""}
+                ${mine ? "" : `<button type="button" class="btn secondary compact" data-cl="disc-report"><i class="fa-solid fa-flag"></i> Report</button>`}
+            </div>
+        </div>
+
+        <div class="panel">
+            <div class="panel-head"><div><p class="eyebrow">REPLIES</p><h3>${discRepliesLoaded ? `${discReplies.length} ${discReplies.length === 1 ? "reply" : "replies"}` : "Replies"}</h3></div></div>
+            ${discRepliesError
+                ? emptyState("fa-cloud-bolt", "Couldn't load replies", "Check your connection and try again.")
+                : !discRepliesLoaded ? `<p class="cl-muted">Loading replies…</p>`
+                : discReplies.length ? discReplies.filter(reply => reply.uid === me || !localIdSet(DISC_REPORTED_KEY).has(`${thread.id}.${reply.id}`)).map(reply => discReplyCard(reply, thread)).join("")
+                : `<p class="cl-muted">No replies yet. Be the first to help.</p>`}
+        </div>
+    `;
+}
+
+
+function renderDiscuss() {
+
+    if (discOpenId) return discDetailHTML();
+
+    const courseCodes = [...new Set([
+        ...ctx.getCourses().map(course => course.code),
+        ...discThreads.map(thread => thread.course).filter(Boolean)
+    ])].sort((a, b) => a.localeCompare(b));
+
+    const openCount = discThreads.filter(thread => !thread.resolved).length;
+
+    return `
+        ${verifyNoticeHTML()}
+        <div class="cl-actions">
+            <button type="button" class="btn primary" data-cl="disc-new"><i class="fa-solid fa-circle-question"></i> Ask a question</button>
+        </div>
+
+        <div class="safety-note"><i class="fa-solid fa-shield-halved"></i>
+            <span><strong>Keep it kind and honest:</strong> help each other learn, don't share exam answers or personal details, and use "Report" for anything abusive. Remember that everyone signed in can read this board.</span>
+        </div>
+
+        <div class="panel">
+            <div class="lf-filters">
+                <div class="seg">
+                    ${[["all", "All"], ["open", `Unanswered (${openCount})`], ["mine", "My questions"]].map(([value, label]) =>
+                        `<button type="button" class="${discFilter === value ? "active" : ""}" data-cl="disc-filter" data-val="${value}">${label}</button>`).join("")}
+                </div>
+                <input id="discSearch" type="search" placeholder="Search discussions…" value="${esc(discSearch)}" aria-label="Search discussions">
+                <select id="discCourse" aria-label="Filter by course">
+                    <option value="">All courses</option>
+                    ${courseCodes.map(code => `<option value="${esc(code)}" ${code === discCourse ? "selected" : ""}>${esc(code)}</option>`).join("")}
+                </select>
+            </div>
+            <div id="discList">${discListHTML()}</div>
+        </div>
+    `;
+}
+
+
+function refreshDiscuss() {
+
+    if (activeTab !== "discuss") return;
+
+    const list = document.getElementById("discList");
+
+    // Typing in the search box must not rebuild the input (it would lose focus).
+    if (!discOpenId && document.activeElement?.id === "discSearch" && list) list.innerHTML = discListHTML();
+    else renderAll();
+}
+
+
+function refreshDiscussList() {
+
+    if (activeTab !== "discuss" || discOpenId) return;
+
+    const list = document.getElementById("discList");
+
+    if (list) list.innerHTML = discListHTML();
+    else renderAll();
+}
+
+
+function openDiscussion(id) {
+
+    const thread = discThreads.find(item => item.id === id);
+
+    if (!thread) return;
+
+    closeDiscRepliesListener();
+    discOpenId = id;
+
+    try {
+        discRepliesUnsub = onSnapshot(
+            query(collection(ctx.db, "threads", id, "replies"), orderBy("createdAt", "asc"), limit(200)),
+            snapshot => {
+                if (discOpenId !== id) return;
+                discReplies = snapshot.docs.map(item => ({ ...item.data({ serverTimestamps: "estimate" }), id: item.id }));
+                discRepliesLoaded = true;
+                discRepliesError = false;
+                refreshDiscuss();
+            },
+            error => {
+                console.warn("Replies listener error:", error?.code || error);
+                discRepliesLoaded = true;
+                discRepliesError = true;
+                refreshDiscuss();
+            }
+        );
+    } catch (error) {
+        console.warn("Could not listen for replies:", error);
+        discRepliesLoaded = true;
+        discRepliesError = true;
+    }
+
+    renderAll();
+}
+
+
+function closeDiscussion() {
+
+    closeDiscRepliesListener();
+    discOpenId = null;
+    renderAll();
+}
+
+
+async function askDiscussion() {
+
+    const user = requireVerified("Verify your email first. Use the buttons at the top of this tab.");
+
+    if (!user) return;
+
+    const values = await askForm({
+        eyebrow: "DISCUSS",
+        title: "Ask a question",
+        submit: "Post question",
+        fields: [
+            { name: "title", label: "Your question in one line", required: true, max: 120, placeholder: "e.g. How do I know when a table is in 3NF?" },
+            { name: "course", label: "Course", type: "select", options: courseOptions() },
+            { name: "body", label: "Details", type: "textarea", required: true, max: 1000, placeholder: "What have you tried? Where are you stuck?" },
+            { name: "showName", label: "Show my name", type: "select", options: [{ value: "yes", label: "Yes, show my name" }, { value: "no", label: "No, post as Anonymous student" }] }
+        ]
+    });
+
+    if (!values) return;
+
+    try {
+        const reference = doc(collection(ctx.db, "threads"));
+
+        await setDoc(reference, {
+            title: values.title.trim().slice(0, 120),
+            body: values.body.trim().slice(0, 1000),
+            course: values.course || "",
+            posterName: values.showName === "no" ? "Anonymous student" : String(ctx.getDisplayName()).slice(0, 40),
+            uid: user.uid,
+            resolved: false,
+            createdAt: serverTimestamp()
+        });
+
+        discFilter = "all";
+        ctx.showToast("Question posted.", "success");
+    } catch (error) {
+        console.error("Thread post failed:", error);
+        ctx.showToast("Could not post. Check your connection, your verified email and that the latest rules are published.", "error");
+    }
+}
+
+
+async function replyToDiscussion() {
+
+    const user = requireVerified("Verify your email first. Use the buttons at the top of this tab.");
+    const thread = discThreads.find(item => item.id === discOpenId);
+
+    if (!user || !thread) return;
+
+    const values = await askForm({
+        eyebrow: "DISCUSS",
+        title: "Write a reply",
+        submit: "Reply",
+        fields: [
+            { name: "body", label: "Your reply", type: "textarea", required: true, max: 1000 },
+            { name: "showName", label: "Show my name", type: "select", options: [{ value: "yes", label: "Yes, show my name" }, { value: "no", label: "No, reply as Anonymous student" }] }
+        ]
+    });
+
+    if (!values) return;
+
+    try {
+        await setDoc(doc(collection(ctx.db, "threads", thread.id, "replies")), {
+            body: values.body.trim().slice(0, 1000),
+            posterName: values.showName === "no" ? "Anonymous student" : String(ctx.getDisplayName()).slice(0, 40),
+            uid: user.uid,
+            createdAt: serverTimestamp()
+        });
+
+        ctx.showToast("Reply posted.", "success");
+    } catch (error) {
+        console.error("Reply failed:", error);
+        ctx.showToast("Could not post your reply. Check your connection and verified email.", "error");
+    }
+}
+
+
+async function toggleDiscussionResolved() {
+
+    const user = ctx.getUser();
+    const thread = discThreads.find(item => item.id === discOpenId);
+
+    if (!user || !thread || thread.uid !== user.uid) return;
+
+    try {
+        await updateDoc(doc(ctx.db, "threads", thread.id), { resolved: !thread.resolved });
+        ctx.showToast(thread.resolved ? "Reopened." : "Marked as resolved. Thanks for closing the loop.", "success");
+    } catch (error) {
+        console.error(error);
+        ctx.showToast("Could not update the discussion.", "error");
+    }
+}
+
+
+async function deleteDiscussion() {
+
+    const user = ctx.getUser();
+    const thread = discThreads.find(item => item.id === discOpenId);
+
+    if (!user || !thread || (thread.uid !== user.uid && !isAdmin)) return;
+
+    if (!window.confirm("Delete this discussion and all its replies for everyone?")) return;
+
+    try {
+        // Replies are removed first: once the thread is gone, the rules can no longer check its owner.
+        if (discRepliesLoaded) {
+            await Promise.allSettled(discReplies.map(reply => deleteDoc(doc(ctx.db, "threads", thread.id, "replies", reply.id))));
+        }
+
+        await deleteDoc(doc(ctx.db, "threads", thread.id));
+
+        closeDiscussion();
+        ctx.showToast("Discussion deleted.", "success");
+    } catch (error) {
+        console.error(error);
+        ctx.showToast("Could not delete it.", "error");
+    }
+}
+
+
+async function deleteDiscussionReply(replyId) {
+
+    const user = ctx.getUser();
+    const thread = discThreads.find(item => item.id === discOpenId);
+    const reply = discReplies.find(item => item.id === replyId);
+
+    if (!user || !thread || !reply || (reply.uid !== user.uid && thread.uid !== user.uid && !isAdmin)) return;
+
+    if (!window.confirm("Delete this reply?")) return;
+
+    try {
+        await deleteDoc(doc(ctx.db, "threads", thread.id, "replies", replyId));
+    } catch (error) {
+        console.error(error);
+        ctx.showToast("Could not delete the reply.", "error");
+    }
+}
+
+
+async function reportDiscussion(postId) {
+
+    const user = ctx.getUser();
+
+    if (!user || !postId) return;
+
+    const values = await askForm({
+        eyebrow: "DISCUSS",
+        title: "Report this",
+        submit: "Report",
+        fields: [{ name: "reason", label: "What's wrong with it?", type: "select", options: DISC_REPORT_REASONS }]
+    });
+
+    if (!values) return;
+
+    try {
+        await setDoc(doc(ctx.db, "threadreports", `${postId}_${user.uid}`), {
+            postId, uid: user.uid, reason: values.reason, createdAt: serverTimestamp()
+        });
+    } catch (error) {
+        console.warn("Report could not be sent:", error);
+    }
+
+    const reported = localIdSet(DISC_REPORTED_KEY);
+    reported.add(postId);
+    localIdSave(DISC_REPORTED_KEY, reported);
+
+    // A reported thread is hidden for this student, so return to the list.
+    if (!postId.includes(".")) closeDiscussion();
+    else renderAll();
+
+    ctx.showToast("Thanks. It's hidden for you and flagged for review.", "success");
+}
+
+
+/* =====================================================
    SUPPORT: MENTAL WELLBEING
    ===================================================== */
 
@@ -3011,6 +3464,11 @@ function stopLive() {
     tutorInbox = [];
     tutorLoaded = false;
     tutorError = false;
+    closeDiscRepliesListener();
+    discThreads = [];
+    discOpenId = null;
+    discLoaded = false;
+    discError = false;
     menus = {};
     menuLoaded = false;
     isAdmin = false;
@@ -3088,6 +3546,28 @@ function startLive(user) {
         tutorError = true;
     }
 
+    try {
+        live.unsubs.push(onSnapshot(
+            query(collection(ctx.db, "threads"), orderBy("createdAt", "desc"), limit(150)),
+            snapshot => {
+                discThreads = snapshot.docs.map(item => ({ ...item.data({ serverTimestamps: "estimate" }), id: item.id }));
+                discLoaded = true;
+                discError = false;
+                refreshDiscuss();
+            },
+            error => {
+                console.warn("Discussions listener error:", error?.code || error);
+                discLoaded = true;
+                discError = true;
+                refreshDiscuss();
+            }
+        ));
+    } catch (error) {
+        console.warn("Could not listen for discussions:", error);
+        discLoaded = true;
+        discError = true;
+    }
+
     // Requests other students have sent to me (only I can read these).
     try {
         live.unsubs.push(onSnapshot(
@@ -3107,7 +3587,7 @@ function startLive(user) {
     getDoc(doc(ctx.db, "admins", user.uid))
         .then(snapshot => {
             isAdmin = snapshot.exists();
-            if (["cafeteria", "resources", "tutors"].includes(activeTab)) renderAll();
+            if (["cafeteria", "resources", "tutors", "discuss"].includes(activeTab)) renderAll();
         })
         .catch(() => { isAdmin = false; });
 }
@@ -3126,6 +3606,7 @@ const RENDERERS = {
     lostfound: renderLostFound,
     resources: renderResources,
     tutors: renderTutors,
+    discuss: renderDiscuss,
     services: renderServices,
     wellness: renderWellness,
     events: renderEvents,
@@ -3275,6 +3756,16 @@ function handleAction(button) {
         case "res-delete": resDelete(id); break;
         case "res-report": resReport(id); break;
         case "res-filter": resFilter = button.dataset.val; renderAll(); break;
+        case "disc-new": askDiscussion(); break;
+        case "disc-open": openDiscussion(id); break;
+        case "disc-back": closeDiscussion(); break;
+        case "disc-reply": replyToDiscussion(); break;
+        case "disc-resolve": toggleDiscussionResolved(); break;
+        case "disc-delete": deleteDiscussion(); break;
+        case "disc-reply-del": deleteDiscussionReply(id); break;
+        case "disc-report": reportDiscussion(discOpenId); break;
+        case "disc-reply-report": reportDiscussion(`${discOpenId}.${id}`); break;
+        case "disc-filter": discFilter = button.dataset.val; renderAll(); break;
         case "tutor-edit": editTutorProfile(); break;
         case "tutor-toggle": toggleTutorListing(); break;
         case "tutor-remove": removeTutorListing(id); break;
@@ -3376,6 +3867,11 @@ export function initCampus(context) {
             tutorSearch = event.target.value;
             refreshTutorList();
         }
+
+        if (event.target.id === "discSearch") {
+            discSearch = event.target.value;
+            refreshDiscussList();
+        }
     });
 
     page?.addEventListener("change", event => {
@@ -3392,6 +3888,11 @@ export function initCampus(context) {
         if (event.target.id === "resKind") {
             resKind = event.target.value;
             refreshResources();
+        }
+
+        if (event.target.id === "discCourse") {
+            discCourse = event.target.value;
+            refreshDiscussList();
         }
 
         if (event.target.id === "tutorSubject") {

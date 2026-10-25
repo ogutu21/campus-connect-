@@ -222,6 +222,68 @@ service cloud.firestore {
       allow read, update, delete: if false;
     }
 
+    // Discussion board: course Q&A threads with replies. Reading is open to signed-in students;
+    // starting a thread or replying needs a verified email.
+    function validThread() {
+      let d = request.resource.data;
+      return d.keys().hasOnly(['title', 'body', 'course', 'posterName', 'uid', 'resolved', 'createdAt'])
+        && d.title is string && d.title.size() > 0 && d.title.size() <= 120
+        && d.body is string && d.body.size() > 0 && d.body.size() <= 1000
+        && d.get('course', '') is string && d.get('course', '').size() <= 40
+        && d.get('posterName', '') is string && d.get('posterName', '').size() <= 40
+        && d.uid == request.auth.uid
+        && d.resolved == false
+        && d.createdAt == request.time;
+    }
+
+    function validReply() {
+      let d = request.resource.data;
+      return d.keys().hasOnly(['body', 'posterName', 'uid', 'createdAt'])
+        && d.body is string && d.body.size() > 0 && d.body.size() <= 1000
+        && d.get('posterName', '') is string && d.get('posterName', '').size() <= 40
+        && d.uid == request.auth.uid
+        && d.createdAt == request.time;
+    }
+
+    match /threads/{threadId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null
+        && request.auth.token.email_verified == true
+        && validThread();
+      // The author can mark a thread resolved or reopen it, and change nothing else.
+      allow update: if request.auth != null
+        && request.auth.uid == resource.data.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['resolved'])
+        && request.resource.data.resolved is bool;
+      allow delete: if request.auth != null
+        && (request.auth.uid == resource.data.uid || isAdmin());
+
+      match /replies/{replyId} {
+        allow read: if request.auth != null;
+        allow create: if request.auth != null
+          && request.auth.token.email_verified == true
+          && exists(/databases/$(database)/documents/threads/$(threadId))
+          && validReply();
+        allow update: if false;
+        // A reply can be removed by its author, by the thread's author, or by staff.
+        allow delete: if request.auth != null
+          && (request.auth.uid == resource.data.uid
+              || request.auth.uid == get(/databases/$(database)/documents/threads/$(threadId)).data.uid
+              || isAdmin());
+      }
+    }
+
+    // Discussion reports are write-only for students; staff review them in the console.
+    // postId is a thread ID, or "threadId.replyId" for a reply.
+    match /threadreports/{reportId} {
+      allow create: if request.auth != null
+        && request.resource.data.uid == request.auth.uid
+        && reportId == request.resource.data.postId + '_' + request.auth.uid
+        && request.resource.data.get('reason', '') is string
+        && request.resource.data.get('reason', '').size() <= 60;
+      allow read, update, delete: if false;
+    }
+
     function validTodo() {
       let d = request.resource.data;
       return d.text is string && d.text.size() > 0 && d.text.size() <= 120

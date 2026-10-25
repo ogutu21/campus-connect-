@@ -596,3 +596,9 @@ body.dark .safety-note.info{background:rgba(99,102,241,.14);color:#c7d2fe;border
 .tutor-subjects{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 8px}
 .tutor-card.paused{opacity:.6}
 @media(max-width:560px){.tutor-avatar{width:40px;height:40px;font-size:13px}}
+
+/* =====================================================
+   DISCUSSION BOARD
+   ===================================================== */
+.disc-card .res-main h4{margin-top:6px}
+.disc-reply{border-left:3px solid var(--border);padding-left:12px}
