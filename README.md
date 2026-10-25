@@ -14,7 +14,7 @@ CampusConnect is a Firebase-powered student campus dashboard with authentication
 
 ## Firebase setup
 
-The project is already configured for the CampusConnect Firebase web app supplied during setup.
+The `firebaseConfig` in `script.js` points at the original CampusConnect Firebase project. That configuration is not a secret, but if you fork or reuse this app, create **your own** Firebase project (Authentication with Email/Password, plus Firestore), replace `firebaseConfig` and the project ID in `.firebaserc`, and publish `firestore.rules` to it.
 
 In Firebase Console, confirm:
 

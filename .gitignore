@@ -1,0 +1,21 @@
+# Firebase CLI local cache and logs
+.firebase/
+firebase-debug.log*
+firebase-debug.*.log*
+ui-debug.log
+
+# Dependencies and build output
+node_modules/
+
+# Secrets: never commit these
+.env
+.env.*
+*.pem
+*-service-account*.json
+serviceAccount*.json
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

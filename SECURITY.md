@@ -1,21 +1,31 @@
 # Security Policy
 
-## Supported Versions
+## Supported versions
 
-Use this section to tell people about which versions of your project are
-currently being supported with security updates.
+CampusConnect is a single web app that is deployed continuously from the `main` branch.
+Only the latest version on `main` receives security fixes.
 
-| Version | Supported          |
-| ------- | ------------------ |
-| 5.1.x   | :white_check_mark: |
-| 5.0.x   | :x:                |
-| 4.0.x   | :white_check_mark: |
-| < 4.0   | :x:                |
+## Reporting a vulnerability
 
-## Reporting a Vulnerability
+Please **do not open a public issue** for a security problem.
 
-Use this section to tell people how to report a vulnerability.
+Report it privately through GitHub: open the **Security** tab of this repository and choose
+**Report a vulnerability**. Include what you found, the steps to reproduce it, and which
+part of the app it affects (for example Lost & Found, the sign-in flow or the Firestore rules).
 
-Tell them where to go, how often they can expect to get an update on a
-reported vulnerability, what to expect if the vulnerability is accepted or
-declined, etc.
+What to expect:
+
+- You will get an acknowledgement within 7 days.
+- If the report is accepted, a fix is prepared on `main` and the Firestore rules or hosting are
+  redeployed. You will be told when it is live.
+- If it is declined (for example it is not reproducible or not a security issue), you will get
+  a short explanation.
+
+## Notes for people running their own copy
+
+- The Firebase web configuration in `script.js` is not a secret, but it identifies a specific
+  Firebase project. If you fork this app, replace it with **your own** Firebase project and
+  publish `firestore.rules` to it. Do not use someone else's project.
+- Never commit Firebase Admin or service-account private keys to this repository.
+- Security is enforced by Firebase Authentication and the Firestore rules in `firestore.rules`,
+  so always publish those rules before using the app with real students' data.
