@@ -43,6 +43,14 @@ const TABS = [
     { id: "support", label: "Support", icon: "fa-hand-holding-heart" }
 ];
 
+// The 13 pages are grouped into four sections so every page stays visible on a phone.
+const SECTIONS = [
+    { id: "study", label: "Study", icon: "fa-book-open", tabs: ["attendance", "exams", "library"] },
+    { id: "community", label: "Community", icon: "fa-people-group", tabs: ["resources", "tutors", "discuss", "lostfound", "events"] },
+    { id: "daily", label: "Daily life", icon: "fa-mug-hot", tabs: ["budget", "cafeteria", "services"] },
+    { id: "wellbeing", label: "Wellbeing", icon: "fa-heart-pulse", tabs: ["wellness", "support"] }
+];
+
 const REQUIRED_ATTENDANCE = 75;
 const WATER_GOAL = 8;
 const MAX_RENEWALS = 3;
@@ -119,15 +127,28 @@ function money(value) {
 }
 
 
-function emptyState(icon, title, text) {
+const RETRY = { label: "Try again", cl: "reload", icon: "fa-rotate-right", secondary: true };
+
+
+function emptyState(icon, title, text, action) {
 
     return `
         <div class="empty-state">
-            <i class="fa-solid ${icon}"></i>
+            <i class="fa-solid ${icon}" aria-hidden="true"></i>
             <h3>${esc(title)}</h3>
             <p>${esc(text)}</p>
+            ${action ? `<button type="button" class="btn ${action.secondary ? "secondary" : "primary"}" data-cl="${action.cl}">${action.icon ? `<i class="fa-solid ${action.icon}" aria-hidden="true"></i> ` : ""}${esc(action.label)}</button>` : ""}
         </div>
     `;
+}
+
+
+// Placeholder cards while shared data loads. Screen readers hear the label, not the shapes.
+function skeletonList(label, count = 3) {
+
+    const card = `<div class="skel-card" aria-hidden="true"><span class="skel-block"></span><span class="skel-lines"><span class="skel-line short"></span><span class="skel-line"></span><span class="skel-line medium"></span></span></div>`;
+
+    return `<div class="skeleton-list" role="status" aria-live="polite"><span class="sr-only">${esc(label)}</span>${card.repeat(count)}</div>`;
 }
 
 
@@ -342,7 +363,7 @@ function renderAttendance() {
                             <div><strong>${esc(cls.title)}</strong><span>${esc(cls.time)}${cls.location ? " · " + esc(cls.location) : ""}</span></div>
                             <div class="att-group">${statusButtons(cls, record?.status)}</div>
                         </div>`;
-                }).join("") : emptyState("fa-mug-hot", "No classes today", "Add classes on the Schedule page and they will show up here for quick check-in.")}
+                }).join("") : emptyState("fa-mug-hot", "No classes today", "Add classes on the Schedule page and they will show up here for quick check-in.", { label: "Open schedule", cl: "go-schedule", icon: "fa-calendar-days", secondary: true })}
             </div>
 
             <div class="panel">
@@ -442,7 +463,7 @@ function renderExams() {
         </div>
         <div class="panel">
             <div class="panel-head"><div><p class="eyebrow">COUNTDOWN</p><h3>Upcoming exams</h3></div></div>
-            ${upcoming.length ? upcoming.map(e => card(e, false)).join("") : emptyState("fa-champagne-glasses", "No exams scheduled", "Add your exam timetable so you always know what's coming.")}
+            ${upcoming.length ? upcoming.map(e => card(e, false)).join("") : emptyState("fa-file-pen", "No exams scheduled", "Add your exam timetable so you always know what's coming.", { label: "Add an exam", cl: "add-exam", icon: "fa-plus" })}
         </div>
         ${past.length ? `<div class="panel"><div class="panel-head"><div><p class="eyebrow">DONE</p><h3>Past exams</h3></div></div>${past.slice(0, 6).map(e => card(e, true)).join("")}</div>` : ""}
     `;
@@ -509,7 +530,7 @@ function renderLibrary() {
                         <button type="button" class="btn secondary compact" data-cl="return" data-id="${esc(loan.id)}">Returned</button>
                         <button type="button" class="icon-btn small" data-cl="del" data-sub="loans" data-id="${esc(loan.id)}" aria-label="Delete"><i class="fa-solid fa-trash"></i></button>
                     </div>`;
-            }).join("") : emptyState("fa-book-bookmark", "No books on loan", "Add books you borrow and get reminded before they're due.")}
+            }).join("") : emptyState("fa-book-bookmark", "No books on loan", "Add books you borrow and get reminded before they're due.", { label: "Add a book", cl: "add-loan", icon: "fa-plus" })}
         </div>
         ${returned.length ? `<div class="panel"><div class="panel-head"><div><p class="eyebrow">HISTORY</p><h3>Returned (${returned.length})</h3></div></div>${returned.slice(0, 5).map(loan => `
             <div class="cl-row past"><span class="cl-icon"><i class="fa-solid fa-check"></i></span><div><strong>${esc(loan.title)}</strong><span>${esc(loan.author || "")}</span></div>
@@ -1037,7 +1058,7 @@ function renderEvents() {
                         </button>
                         <button type="button" class="icon-btn small" data-cl="del" data-sub="events" data-id="${esc(event.id)}" aria-label="Delete event"><i class="fa-solid fa-trash"></i></button>
                     </div>`;
-            }).join("") : emptyState("fa-champagne-glasses", "No upcoming events", "Add club meetings, sports fixtures, career fairs and socials so you never miss them.")}
+            }).join("") : emptyState("fa-champagne-glasses", "No upcoming events", "Add club meetings, sports fixtures, career fairs and socials so you never miss them.", { label: "Add an event", cl: "add-event", icon: "fa-plus" })}
         </div>
         ${past.length ? `<p class="cl-muted">${past.length} past event${past.length === 1 ? "" : "s"} · <button type="button" class="text-btn" data-cl="clear-past-events">Clear past events</button></p>` : ""}
     `;
@@ -1488,16 +1509,16 @@ function lfListHTML() {
     const resolved = visible.filter(post => post.status === "resolved");
 
     if (lfError) {
-        return emptyState("fa-cloud-bolt", "Couldn't load shared posts", "Check your connection. If this keeps happening, the latest Firestore rules may not be published yet.");
+        return emptyState("fa-cloud-bolt", "Couldn't load shared posts", "Check your connection. If this keeps happening, the latest Firestore rules may not be published yet.", RETRY);
     }
 
     if (!lfLoaded) {
-        return `<p class="cl-muted">Loading posts…</p>`;
+        return skeletonList("Loading posts");
     }
 
     return `
         ${open.length ? `<div class="lf-grid">${open.map(lfCard).join("")}</div>`
-            : emptyState("fa-magnifying-glass-location", "Nothing here yet", lfFilter === "mine" ? "You haven't posted anything. Lost something or found something? Post it so others can help." : "No matching posts. Be the first to post a lost or found item.")}
+            : emptyState("fa-magnifying-glass-location", "Nothing here yet", lfFilter === "mine" ? "You haven't posted anything. Lost something or found something? Post it so others can help." : "No matching posts. Be the first to post a lost or found item.", { label: "I lost something", cl: "lf-post-lost", icon: "fa-magnifying-glass" })}
         ${resolved.length ? `
             <p class="cl-muted"><button type="button" class="text-btn" data-cl="lf-toggle-resolved">${lfShowResolved ? "Hide" : "Show"} ${resolved.length} resolved</button></p>
             ${lfShowResolved ? `<div class="lf-grid">${resolved.map(lfCard).join("")}</div>` : ""}` : ""}
@@ -2104,10 +2125,10 @@ function resCard(post) {
 function resListHTML() {
 
     if (resError) {
-        return emptyState("fa-cloud-bolt", "Couldn't load resources", "Check your connection. If this keeps happening, the latest Firestore rules may not be published yet.");
+        return emptyState("fa-cloud-bolt", "Couldn't load resources", "Check your connection. If this keeps happening, the latest Firestore rules may not be published yet.", RETRY);
     }
 
-    if (!resLoaded) return `<p class="cl-muted">Loading resources…</p>`;
+    if (!resLoaded) return skeletonList("Loading resources");
 
     const reported = resReportedSet();
     const visible = resPosts.filter(post => !reported.has(post.id) && resMatches(post));
@@ -2117,10 +2138,14 @@ function resListHTML() {
     }
 
     if (!visible.length) {
-        return emptyState("fa-book-open-reader", "No resources yet",
-            resFilter === "mine"
-                ? "You haven't shared anything. Share a link, notes or a past paper to help others."
-                : "Nothing matches. Be the first to share something useful for your course.");
+
+        if (resSearch || resCourse || resKind) {
+            return emptyState("fa-book-open-reader", "No matching resources", "Try a different course or type, or clear your filters.", { label: "Clear filters", cl: "res-clear", icon: "fa-filter-circle-xmark", secondary: true });
+        }
+
+        return emptyState("fa-book-open-reader", resFilter === "mine" ? "You haven't shared anything yet" : "No resources yet",
+            resFilter === "mine" ? "Share a link, notes or a past paper to help others." : "Be the first to share something useful for your course.",
+            { label: "Share a resource", cl: "res-post", icon: "fa-share-nodes" });
     }
 
     return `<div class="res-list">${visible.map(resCard).join("")}</div>`;
@@ -2450,18 +2475,22 @@ function tutorCard(post) {
 function tutorListHTML() {
 
     if (tutorError) {
-        return emptyState("fa-cloud-bolt", "Couldn't load tutors", "Check your connection. If this keeps happening, the latest Firestore rules may not be published yet.");
+        return emptyState("fa-cloud-bolt", "Couldn't load tutors", "Check your connection. If this keeps happening, the latest Firestore rules may not be published yet.", RETRY);
     }
 
-    if (!tutorLoaded) return `<p class="cl-muted">Loading tutors…</p>`;
+    if (!tutorLoaded) return skeletonList("Loading tutors");
 
     const reported = localIdSet(TUTOR_REPORTED_KEY);
     const me = ctx.getUser()?.uid;
     const visible = tutorPosts.filter(post => (post.id === me || !reported.has(post.id)) && tutorMatches(post));
 
     if (!visible.length) {
-        return emptyState("fa-chalkboard-user", "No tutors found",
-            tutorPosts.length ? "Nothing matches your filters. Try another subject or search." : "Nobody is listed yet. Be the first to offer help in a subject you're strong in.");
+
+        if (tutorSearch || tutorSubject || tutorMode) {
+            return emptyState("fa-chalkboard-user", "No matching tutors", "Try another subject or search, or clear your filters.", { label: "Clear filters", cl: "tutor-clear", icon: "fa-filter-circle-xmark", secondary: true });
+        }
+
+        return emptyState("fa-chalkboard-user", "No tutors listed yet", "Be the first to offer help in a subject you're strong in.", { label: "Offer to tutor", cl: "tutor-edit", icon: "fa-chalkboard-user" });
     }
 
     return `<div class="res-list">${visible.map(tutorCard).join("")}</div>`;
@@ -2888,18 +2917,28 @@ function discThreadCard(thread) {
 function discListHTML() {
 
     if (discError) {
-        return emptyState("fa-cloud-bolt", "Couldn't load discussions", "Check your connection. If this keeps happening, the latest Firestore rules may not be published yet.");
+        return emptyState("fa-cloud-bolt", "Couldn't load discussions", "Check your connection. If this keeps happening, the latest Firestore rules may not be published yet.", RETRY);
     }
 
-    if (!discLoaded) return `<p class="cl-muted">Loading discussions…</p>`;
+    if (!discLoaded) return skeletonList("Loading discussions");
 
     const reported = localIdSet(DISC_REPORTED_KEY);
     const me = ctx.getUser()?.uid;
     const visible = discThreads.filter(thread => (thread.uid === me || !reported.has(thread.id)) && discMatches(thread));
 
     if (!visible.length) {
-        return emptyState("fa-comments", "No discussions yet",
-            discThreads.length ? "Nothing matches your filters." : "Ask the first question about a course. Someone in your class probably knows the answer.");
+
+        const ask = { label: "Ask a question", cl: "disc-new", icon: "fa-circle-question" };
+
+        if (discFilter === "mine" && !discSearch && !discCourse) {
+            return emptyState("fa-comments", "You haven't asked anything yet", "Stuck on something? Ask your classmates.", ask);
+        }
+
+        if (discSearch || discCourse || discFilter !== "all") {
+            return emptyState("fa-comments", "No matching discussions", "Try different words, or clear your filters.", { label: "Clear filters", cl: "disc-clear", icon: "fa-filter-circle-xmark", secondary: true });
+        }
+
+        return emptyState("fa-comments", "No discussions yet", "Ask the first question about a course. Someone in your class probably knows the answer.", ask);
     }
 
     return `<div class="res-list">${visible.map(discThreadCard).join("")}</div>`;
@@ -2936,7 +2975,7 @@ function discDetailHTML() {
     const back = `<div class="cl-actions"><button type="button" class="btn secondary" data-cl="disc-back"><i class="fa-solid fa-arrow-left"></i> All discussions</button></div>`;
 
     if (!thread) {
-        return `${back}${discLoaded ? emptyState("fa-comment-slash", "This discussion is gone", "It may have been deleted by its author.") : `<p class="cl-muted">Loading…</p>`}`;
+        return `${back}${discLoaded ? emptyState("fa-comment-slash", "This discussion is gone", "It may have been deleted by its author.") : skeletonList("Loading discussion", 1)}`;
     }
 
     const me = ctx.getUser()?.uid;
@@ -2964,8 +3003,8 @@ function discDetailHTML() {
         <div class="panel">
             <div class="panel-head"><div><p class="eyebrow">REPLIES</p><h3>${discRepliesLoaded ? `${discReplies.length} ${discReplies.length === 1 ? "reply" : "replies"}` : "Replies"}</h3></div></div>
             ${discRepliesError
-                ? emptyState("fa-cloud-bolt", "Couldn't load replies", "Check your connection and try again.")
-                : !discRepliesLoaded ? `<p class="cl-muted">Loading replies…</p>`
+                ? emptyState("fa-cloud-bolt", "Couldn't load replies", "Check your connection and try again.", RETRY)
+                : !discRepliesLoaded ? skeletonList("Loading replies", 2)
                 : discReplies.length ? discReplies.filter(reply => reply.uid === me || !localIdSet(DISC_REPORTED_KEY).has(`${thread.id}.${reply.id}`)).map(reply => discReplyCard(reply, thread)).join("")
                 : `<p class="cl-muted">No replies yet. Be the first to help.</p>`}
         </div>
@@ -3614,16 +3653,49 @@ const RENDERERS = {
 };
 
 
+const lastTabInSection = {};
+let refocus = null;   // after a keyboard action the tab bar is rebuilt, so focus is put back
+
+
+function sectionOf(tabId) {
+
+    return SECTIONS.find(section => section.tabs.includes(tabId)) || SECTIONS[0];
+}
+
+
 function renderTabs() {
 
     const bar = document.getElementById("clTabs");
 
     if (!bar) return;
 
-    bar.innerHTML = TABS.map(tab => `
-        <button type="button" class="cl-tab ${tab.id === activeTab ? "active" : ""}" data-cl-tab="${tab.id}" role="tab" aria-selected="${tab.id === activeTab}">
-            <i class="fa-solid ${tab.icon}"></i><span>${tab.label}</span>
-        </button>`).join("");
+    const section = sectionOf(activeTab);
+
+    lastTabInSection[section.id] = activeTab;
+
+    bar.innerHTML = `
+        <div class="cl-sections" role="group" aria-label="Campus Life sections">
+            ${SECTIONS.map(item => `
+            <button type="button" class="cl-section ${item.id === section.id ? "active" : ""}" data-cl-section="${item.id}" aria-pressed="${item.id === section.id}">
+                <i class="fa-solid ${item.icon}" aria-hidden="true"></i><span>${item.label}</span>
+            </button>`).join("")}
+        </div>
+        <div class="cl-subtabs" role="tablist" aria-label="${section.label} pages">
+            ${section.tabs.map(id => {
+                const tab = TABS.find(item => item.id === id);
+                return `
+            <button type="button" class="cl-tab ${id === activeTab ? "active" : ""}" data-cl-tab="${id}" role="tab" id="cl-tab-${id}" aria-selected="${id === activeTab}" aria-controls="clBody" tabindex="${id === activeTab ? 0 : -1}">
+                <i class="fa-solid ${tab.icon}" aria-hidden="true"></i><span>${tab.label}</span>
+            </button>`;
+            }).join("")}
+        </div>`;
+
+    document.getElementById("clBody")?.setAttribute("aria-labelledby", `cl-tab-${activeTab}`);
+
+    if (refocus) {
+        bar.querySelector(refocus === "section" ? ".cl-section.active" : ".cl-tab.active")?.focus();
+        refocus = null;
+    }
 }
 
 
@@ -3686,6 +3758,11 @@ function handleAction(button) {
         }
         case "log-past": logPastClass(); break;
         case "del": remove(sub, id); break;
+        case "reload": location.reload(); break;
+        case "go-schedule": ctx.navigateTo("schedule"); break;
+        case "res-clear": resSearch = ""; resCourse = ""; resKind = ""; renderAll(); break;
+        case "tutor-clear": tutorSearch = ""; tutorSubject = ""; tutorMode = ""; renderAll(); break;
+        case "disc-clear": discSearch = ""; discCourse = ""; discFilter = "all"; renderAll(); break;
         case "add-exam": editExam(); break;
         case "edit-exam": editExam(id); break;
         case "add-loan": addLoan(); break;
@@ -3838,9 +3915,22 @@ export function initCampus(context) {
 
     document.getElementById("campusPage")?.addEventListener("click", event => {
 
+        // event.detail is 0 when a button is activated with the keyboard (Enter or Space).
+        const keyboard = event.detail === 0;
+
+        const sectionButton = event.target.closest("[data-cl-section]");
+
+        if (sectionButton) {
+            const section = SECTIONS.find(item => item.id === sectionButton.dataset.clSection);
+            if (keyboard) refocus = "section";
+            if (section) setTab(lastTabInSection[section.id] || section.tabs[0]);
+            return;
+        }
+
         const tab = event.target.closest("[data-cl-tab]");
 
         if (tab) {
+            if (keyboard) refocus = "tab";
             setTab(tab.dataset.clTab);
             return;
         }
@@ -3872,6 +3962,26 @@ export function initCampus(context) {
             discSearch = event.target.value;
             refreshDiscussList();
         }
+    });
+
+    // Arrow keys, Home and End move between the page tabs, as in any standard tab list.
+    page?.addEventListener("keydown", event => {
+
+        const current = event.target.closest?.("#clTabs [role='tab']");
+
+        if (!current || !["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+
+        const tabs = [...document.querySelectorAll("#clTabs [role='tab']")];
+        let index = tabs.indexOf(current);
+
+        if (event.key === "ArrowRight") index = (index + 1) % tabs.length;
+        else if (event.key === "ArrowLeft") index = (index - 1 + tabs.length) % tabs.length;
+        else if (event.key === "Home") index = 0;
+        else index = tabs.length - 1;
+
+        event.preventDefault();
+        refocus = "tab";
+        setTab(tabs[index].dataset.clTab);
     });
 
     page?.addEventListener("change", event => {
