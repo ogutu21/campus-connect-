@@ -62,7 +62,21 @@ service cloud.firestore {
 
     match /announcements/{announcementId} {
       allow read: if request.auth != null;
-      allow write: if isAdmin();
+      allow create: if isAdmin()
+        && request.resource.data.keys().hasOnly(['tag', 'title', 'body', 'source', 'createdAt'])
+        && request.resource.data.title is string && request.resource.data.title.size() > 0 && request.resource.data.title.size() <= 100
+        && request.resource.data.body is string && request.resource.data.body.size() > 0 && request.resource.data.body.size() <= 500
+        && request.resource.data.get('tag', '') is string && request.resource.data.get('tag', '').size() <= 30
+        && request.resource.data.get('source', '') is string && request.resource.data.get('source', '').size() <= 40
+        && request.resource.data.createdAt == request.time;
+      // Editing changes only the visible text, never the date.
+      allow update: if isAdmin()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['tag', 'title', 'body', 'source'])
+        && request.resource.data.title is string && request.resource.data.title.size() > 0 && request.resource.data.title.size() <= 100
+        && request.resource.data.body is string && request.resource.data.body.size() > 0 && request.resource.data.body.size() <= 500
+        && request.resource.data.get('tag', '') is string && request.resource.data.get('tag', '').size() <= 30
+        && request.resource.data.get('source', '') is string && request.resource.data.get('source', '').size() <= 40;
+      allow delete: if isAdmin();
     }
 
     // Cafeteria menus: everyone signed in can read, approved staff publish (document ID = date).
@@ -89,17 +103,18 @@ service cloud.firestore {
         && validLostFound()
         && request.resource.data.uid == resource.data.uid
         && request.resource.data.createdAt == resource.data.createdAt;
-      allow delete: if request.auth != null && resource.data.uid == request.auth.uid;
+      allow delete: if request.auth != null && (resource.data.uid == request.auth.uid || isAdmin());
     }
 
-    // Reports are write-only for students; staff review them in the console.
+    // Reports: students can only file them; staff review and clear them in the app.
     match /lfreports/{reportId} {
       allow create: if request.auth != null
         && request.resource.data.uid == request.auth.uid
         && reportId == request.resource.data.postId + '_' + request.auth.uid
         && request.resource.data.get('reason', '') is string
         && request.resource.data.get('reason', '').size() <= 60;
-      allow read, update, delete: if false;
+      allow read, delete: if isAdmin();
+      allow update: if false;
     }
 
     // Resource library: shared between signed-in students. Posting needs a verified email.
@@ -147,14 +162,15 @@ service cloud.firestore {
         && (resource.data.uid == request.auth.uid || isAdmin());
     }
 
-    // Resource reports are write-only for students; staff review them in the console.
+    // Resource reports: students can only file them; staff review and clear them in the app.
     match /resreports/{reportId} {
       allow create: if request.auth != null
         && request.resource.data.uid == request.auth.uid
         && reportId == request.resource.data.postId + '_' + request.auth.uid
         && request.resource.data.get('reason', '') is string
         && request.resource.data.get('reason', '').size() <= 60;
-      allow read, update, delete: if false;
+      allow read, delete: if isAdmin();
+      allow update: if false;
     }
 
     // Tutor directory: one listing per student (document ID = their uid). Contact details are
@@ -212,14 +228,15 @@ service cloud.firestore {
       }
     }
 
-    // Tutor reports are write-only for students; staff review them in the console.
+    // Tutor reports: students can only file them; staff review and clear them in the app.
     match /tutorreports/{reportId} {
       allow create: if request.auth != null
         && request.resource.data.uid == request.auth.uid
         && reportId == request.resource.data.postId + '_' + request.auth.uid
         && request.resource.data.get('reason', '') is string
         && request.resource.data.get('reason', '').size() <= 60;
-      allow read, update, delete: if false;
+      allow read, delete: if isAdmin();
+      allow update: if false;
     }
 
     // Discussion board: course Q&A threads with replies. Reading is open to signed-in students;
@@ -273,7 +290,7 @@ service cloud.firestore {
       }
     }
 
-    // Discussion reports are write-only for students; staff review them in the console.
+    // Discussion reports: students can only file them; staff review and clear them in the app.
     // postId is a thread ID, or "threadId.replyId" for a reply.
     match /threadreports/{reportId} {
       allow create: if request.auth != null
@@ -281,7 +298,8 @@ service cloud.firestore {
         && reportId == request.resource.data.postId + '_' + request.auth.uid
         && request.resource.data.get('reason', '') is string
         && request.resource.data.get('reason', '').size() <= 60;
-      allow read, update, delete: if false;
+      allow read, delete: if isAdmin();
+      allow update: if false;
     }
 
     function validTodo() {

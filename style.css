@@ -606,7 +606,7 @@ body.dark .safety-note.info{background:rgba(99,102,241,.14);color:#c7d2fe;border
 /* =====================================================
    CAMPUS LIFE NAVIGATION: four sections, each with its own pages
    ===================================================== */
-.cl-sections{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;padding:4px;border-radius:20px;background:var(--glass);border:1px solid var(--glass-border);-webkit-backdrop-filter:blur(14px) saturate(150%);backdrop-filter:blur(14px) saturate(150%)}
+.cl-sections{display:grid;grid-template-columns:repeat(var(--sections,4),minmax(0,1fr));gap:4px;padding:4px;border-radius:20px;background:var(--glass);border:1px solid var(--glass-border);-webkit-backdrop-filter:blur(14px) saturate(150%);backdrop-filter:blur(14px) saturate(150%)}
 .cl-section{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;min-height:56px;padding:8px 4px;border:0;border-radius:16px;background:transparent;color:var(--muted);font-size:12px;font-weight:700;line-height:1.15;text-align:center;transition:background .15s,color .15s}
 .cl-section i{font-size:16px}
 .cl-section:hover{color:var(--text)}
@@ -615,7 +615,7 @@ body.dark .safety-note.info{background:rgba(99,102,241,.14);color:#c7d2fe;border
 .cl-subtabs .cl-tab{min-height:44px;font-size:13px}
 .cl-subtabs .cl-tab.active{background:rgba(79,70,229,.1);color:var(--primary);border-color:rgba(79,70,229,.4);box-shadow:none}
 body.dark .cl-subtabs .cl-tab.active{background:rgba(129,140,248,.18);color:#c7d2fe;border-color:rgba(129,140,248,.5)}
-@media(min-width:720px){.cl-sections{display:inline-grid;grid-template-columns:repeat(4,auto);width:fit-content}.cl-section{flex-direction:row;gap:8px;min-height:44px;padding:10px 18px;font-size:13px}}
+@media(min-width:720px){.cl-sections{display:inline-grid;grid-template-columns:repeat(var(--sections,4),auto);width:fit-content}.cl-section{flex-direction:row;gap:8px;min-height:44px;padding:10px 18px;font-size:13px}}
 
 /* =====================================================
    LOADING AND EMPTY STATES
@@ -642,3 +642,17 @@ body.dark .empty-state>i{background:rgba(129,140,248,.16);color:#c7d2fe}
 .icon-btn.small::after,.mini-check::after{content:"";position:absolute;inset:-7px}
 .mini-check::after{inset:-10px}
 @media (prefers-reduced-motion:reduce){.skel-block,.skel-line{animation:none}.cl-section,.cl-tab{transition:none}}
+
+/* =====================================================
+   STAFF: REPORTS AND ANNOUNCEMENTS
+   ===================================================== */
+.cl-count{display:inline-grid;place-items:center;min-width:18px;height:18px;padding:0 5px;margin-left:6px;border-radius:99px;background:#b91c1c;color:#fff;font-size:11px;font-weight:800;line-height:1}
+.cl-section .cl-count{margin:0;position:absolute;top:6px;right:8px}
+.cl-section{position:relative}
+.staff-list{display:grid;gap:14px}
+.report-card{display:grid;gap:10px}
+.report-reasons{margin:0;font-size:13px;color:var(--muted)}
+.report-preview{margin:0;padding:10px 14px;border-left:3px solid var(--border);border-radius:0 12px 12px 0;background:rgba(100,116,139,.08);overflow-wrap:anywhere}
+.report-preview strong{display:block}
+.report-preview p{margin:4px 0;font-size:14px}
+.report-preview small{color:var(--muted)}

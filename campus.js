@@ -13,6 +13,7 @@ import {
     deleteDoc,
     doc,
     getDoc,
+    getDocs,
     limit,
     onSnapshot,
     orderBy,
@@ -40,15 +41,20 @@ const TABS = [
     { id: "services", label: "Services", icon: "fa-location-dot" },
     { id: "events", label: "Events", icon: "fa-champagne-glasses" },
     { id: "wellness", label: "Wellness", icon: "fa-heart-pulse" },
-    { id: "support", label: "Support", icon: "fa-hand-holding-heart" }
+    { id: "support", label: "Support", icon: "fa-hand-holding-heart" },
+    { id: "reports", label: "Reports", icon: "fa-flag", staffOnly: true },
+    { id: "announce", label: "Announcements", icon: "fa-bullhorn", staffOnly: true }
 ];
+
+const STAFF_TABS = new Set(TABS.filter(tab => tab.staffOnly).map(tab => tab.id));
 
 // The 13 pages are grouped into four sections so every page stays visible on a phone.
 const SECTIONS = [
     { id: "study", label: "Study", icon: "fa-book-open", tabs: ["attendance", "exams", "library"] },
     { id: "community", label: "Community", icon: "fa-people-group", tabs: ["resources", "tutors", "discuss", "lostfound", "events"] },
     { id: "daily", label: "Daily life", icon: "fa-mug-hot", tabs: ["budget", "cafeteria", "services"] },
-    { id: "wellbeing", label: "Wellbeing", icon: "fa-heart-pulse", tabs: ["wellness", "support"] }
+    { id: "wellbeing", label: "Wellbeing", icon: "fa-heart-pulse", tabs: ["wellness", "support"] },
+    { id: "staff", label: "Staff", icon: "fa-user-shield", tabs: ["reports", "announce"], staffOnly: true }
 ];
 
 const REQUIRED_ATTENDANCE = 75;
@@ -3293,6 +3299,472 @@ async function reportDiscussion(postId) {
 
 
 /* =====================================================
+   STAFF: reports queue and announcements (approved staff only)
+   Staff are accounts with a document at admins/{uid}. Students can only file reports;
+   staff read them here, then remove the post or dismiss the report. Announcements
+   posted here appear on every student's Announcements page.
+   ===================================================== */
+
+const REPORT_KINDS = [
+    { kind: "lostfound", collection: "lfreports", label: "Lost & Found" },
+    { kind: "resources", collection: "resreports", label: "Resource" },
+    { kind: "tutors", collection: "tutorreports", label: "Tutor listing" },
+    { kind: "threads", collection: "threadreports", label: "Discussion" }
+];
+
+const NEWS_TAGS = ["Academic", "Campus", "Events", "Finance", "Safety", "Facilities"];
+
+let staffReports = {};      // kind -> report documents
+let staffLoaded = {};
+let staffErrors = {};
+const staffItems = new Map();   // "kind:postId" -> { state, data, thread }
+const staffBusy = new Set();    // groups being removed right now
+let staffNews = [];
+let staffNewsLoaded = false;
+let staffNewsError = false;
+
+
+function clip(text, length = 280) {
+
+    const clean = String(text || "").replace(/\s+/g, " ").trim();
+
+    return clean.length > length ? clean.slice(0, length - 1) + "…" : clean;
+}
+
+
+// One entry per reported post, most-reported first.
+function reportGroups() {
+
+    const groups = [];
+
+    for (const spec of REPORT_KINDS) {
+
+        const byPost = new Map();
+
+        for (const report of staffReports[spec.kind] || []) {
+
+            if (!report.postId) continue;
+
+            const entry = byPost.get(report.postId) || { key: `${spec.kind}:${report.postId}`, spec, postId: report.postId, reports: [] };
+
+            entry.reports.push(report);
+            byPost.set(report.postId, entry);
+        }
+
+        groups.push(...byPost.values());
+    }
+
+    const latest = group => Math.max(...group.reports.map(report => report.createdAt?.toMillis?.() ?? 0));
+
+    return groups.sort((a, b) => b.reports.length - a.reports.length || latest(b) - latest(a));
+}
+
+
+async function loadReportedItem(group) {
+
+    if (staffItems.has(group.key)) return;
+
+    staffItems.set(group.key, { state: "loading" });
+
+    try {
+        let snapshot;
+        let thread = null;
+
+        if (group.spec.kind === "threads" && group.postId.includes(".")) {
+            const [threadId, replyId] = group.postId.split(".");
+            snapshot = await getDoc(doc(ctx.db, "threads", threadId, "replies", replyId));
+            const parent = await getDoc(doc(ctx.db, "threads", threadId));
+            thread = parent.exists() ? parent.data() : null;
+        } else {
+            snapshot = await getDoc(doc(ctx.db, group.spec.kind, group.postId));
+        }
+
+        staffItems.set(group.key, snapshot.exists() ? { state: "ok", data: snapshot.data(), thread } : { state: "gone" });
+    } catch (error) {
+        console.warn("Could not load a reported post:", error?.code || error);
+        staffItems.set(group.key, { state: "error" });
+    }
+
+    refreshStaff();
+}
+
+
+function refreshStaff() {
+
+    if (STAFF_TABS.has(activeTab)) renderAll();
+    else renderTabs();
+}
+
+
+function startStaffListeners() {
+
+    for (const spec of REPORT_KINDS) {
+
+        staffLoaded[spec.kind] = false;
+        staffErrors[spec.kind] = false;
+
+        try {
+            live.unsubs.push(onSnapshot(
+                query(collection(ctx.db, spec.collection), orderBy("createdAt", "desc"), limit(100)),
+                snapshot => {
+                    staffReports[spec.kind] = snapshot.docs.map(item => ({ ...item.data({ serverTimestamps: "estimate" }), id: item.id }));
+                    staffLoaded[spec.kind] = true;
+                    staffErrors[spec.kind] = false;
+
+                    reportGroups().filter(group => group.spec === spec).forEach(loadReportedItem);
+
+                    refreshStaff();
+                },
+                error => {
+                    console.warn("Reports listener error:", spec.collection, error?.code || error);
+                    staffLoaded[spec.kind] = true;
+                    staffErrors[spec.kind] = true;
+                    refreshStaff();
+                }
+            ));
+        } catch (error) {
+            console.warn("Could not listen for reports:", error);
+            staffLoaded[spec.kind] = true;
+            staffErrors[spec.kind] = true;
+        }
+    }
+
+    try {
+        live.unsubs.push(onSnapshot(
+            query(collection(ctx.db, "announcements"), orderBy("createdAt", "desc"), limit(50)),
+            snapshot => {
+                staffNews = snapshot.docs.map(item => ({ ...item.data({ serverTimestamps: "estimate" }), id: item.id }));
+                staffNewsLoaded = true;
+                staffNewsError = false;
+                refreshStaff();
+            },
+            error => {
+                console.warn("Announcements listener error:", error?.code || error);
+                staffNewsLoaded = true;
+                staffNewsError = true;
+                refreshStaff();
+            }
+        ));
+    } catch (error) {
+        console.warn("Could not listen for announcements:", error);
+        staffNewsLoaded = true;
+        staffNewsError = true;
+    }
+}
+
+
+function reportPreviewHTML(group) {
+
+    const entry = staffItems.get(group.key);
+
+    if (!entry || entry.state === "loading") return skeletonList("Loading the reported post", 1);
+
+    if (entry.state === "gone") return `<p class="cl-muted"><i class="fa-regular fa-circle-check" aria-hidden="true"></i> This post has already been removed.</p>`;
+
+    if (entry.state === "error") return `<p class="cl-muted">Couldn't load this post. Try again later.</p>`;
+
+    const d = entry.data;
+    const isReply = group.spec.kind === "threads" && group.postId.includes(".");
+    let title = "", text = "", meta = "";
+
+    switch (group.spec.kind) {
+        case "lostfound":
+            title = d.title; text = d.description;
+            meta = [d.type === "found" ? "Found" : "Lost", d.place, d.posterName].filter(Boolean).join(" · ");
+            break;
+        case "resources":
+            title = d.title; text = d.description;
+            meta = [d.course, d.url, d.posterName].filter(Boolean).join(" · ");
+            break;
+        case "tutors":
+            title = d.displayName; text = d.bio;
+            meta = d.subjects;
+            break;
+        default:
+            title = isReply ? "" : d.title;
+            text = d.body;
+            meta = isReply
+                ? [`Reply by ${d.posterName || "a student"}`, entry.thread?.title ? `on "${clip(entry.thread.title, 60)}"` : ""].filter(Boolean).join(" ")
+                : d.posterName;
+    }
+
+    return `
+        <blockquote class="report-preview">
+            ${title ? `<strong>${esc(clip(title, 120))}</strong>` : ""}
+            ${text ? `<p>${esc(clip(text))}</p>` : ""}
+            ${meta ? `<small>${esc(clip(meta, 160))}</small>` : ""}
+        </blockquote>`;
+}
+
+
+function reportCardHTML(group) {
+
+    const entry = staffItems.get(group.key);
+    const gone = entry?.state === "gone";
+    const busy = staffBusy.has(group.key);
+    const count = group.reports.length;
+    const reasons = {};
+
+    group.reports.forEach(report => {
+        const reason = report.reason || "No reason given";
+        reasons[reason] = (reasons[reason] || 0) + 1;
+    });
+
+    const latest = Math.max(...group.reports.map(report => report.createdAt?.toMillis?.() ?? 0));
+
+    return `
+        <article class="panel report-card">
+            <div class="lf-top">
+                <span class="cl-badge late"><i class="fa-solid fa-flag" aria-hidden="true"></i> ${count} ${count === 1 ? "report" : "reports"}</span>
+                <span class="tag">${esc(group.spec.label)}</span>
+                <small>${latest ? esc(timeAgo({ toDate: () => new Date(latest) })) : ""}</small>
+            </div>
+            <p class="report-reasons"><strong>Why:</strong> ${esc(Object.entries(reasons).map(([reason, n]) => n > 1 ? `${reason} ×${n}` : reason).join(", "))}</p>
+            ${reportPreviewHTML(group)}
+            <div class="lf-actions">
+                ${gone
+                    ? `<button type="button" class="btn secondary compact" data-cl="report-dismiss" data-id="${esc(group.key)}" ${busy ? "disabled" : ""}><i class="fa-solid fa-check" aria-hidden="true"></i> Clear report</button>`
+                    : `<button type="button" class="btn secondary compact danger-text" data-cl="report-remove" data-id="${esc(group.key)}" ${busy ? "disabled" : ""}><i class="fa-solid fa-trash" aria-hidden="true"></i> ${busy ? "Removing…" : "Remove post"}</button>
+                       <button type="button" class="btn secondary compact" data-cl="report-dismiss" data-id="${esc(group.key)}" ${busy ? "disabled" : ""}><i class="fa-solid fa-check" aria-hidden="true"></i> Keep post, dismiss</button>`}
+            </div>
+        </article>`;
+}
+
+
+function renderReports() {
+
+    if (!isAdmin) return "";
+
+    const failed = REPORT_KINDS.some(spec => staffErrors[spec.kind]);
+    const ready = REPORT_KINDS.every(spec => staffLoaded[spec.kind]);
+    const groups = reportGroups();
+    const goneCount = groups.filter(group => staffItems.get(group.key)?.state === "gone").length;
+
+    let content;
+
+    if (failed) {
+        content = emptyState("fa-cloud-bolt", "Couldn't load reports", "Check your connection. If this keeps happening, the latest Firestore rules may not be published yet.", RETRY);
+    } else if (!ready) {
+        content = skeletonList("Loading reports");
+    } else if (!groups.length) {
+        content = emptyState("fa-shield-halved", "No open reports", "When a student reports a post, it appears here for review.");
+    } else {
+        content = `<div class="staff-list">${groups.map(reportCardHTML).join("")}</div>`;
+    }
+
+    return `
+        <div class="safety-note"><i class="fa-solid fa-user-shield" aria-hidden="true"></i>
+            <span><strong>Staff only.</strong> Check each post before you remove it. Removing deletes it for everyone and cannot be undone. Dismissing keeps the post and clears its reports.</span>
+        </div>
+        ${goneCount > 1 ? `<div class="cl-actions"><button type="button" class="btn secondary" data-cl="report-clear-gone"><i class="fa-solid fa-broom" aria-hidden="true"></i> Clear ${goneCount} reports on removed posts</button></div>` : ""}
+        ${content}`;
+}
+
+
+async function clearReportDocs(group) {
+
+    await Promise.allSettled(group.reports.map(report => deleteDoc(doc(ctx.db, group.spec.collection, report.id))));
+}
+
+
+async function dismissReports(key) {
+
+    const group = reportGroups().find(item => item.key === key);
+
+    if (!group || !isAdmin) return;
+
+    staffBusy.add(key);
+    refreshStaff();
+
+    try {
+        await clearReportDocs(group);
+        staffItems.delete(key);
+        ctx.showToast("Report cleared.", "success");
+    } catch (error) {
+        console.error(error);
+        ctx.showToast("Could not clear the report.", "error");
+    } finally {
+        staffBusy.delete(key);
+        refreshStaff();
+    }
+}
+
+
+async function clearGoneReports() {
+
+    if (!isAdmin) return;
+
+    const gone = reportGroups().filter(group => staffItems.get(group.key)?.state === "gone");
+
+    await Promise.allSettled(gone.map(clearReportDocs));
+
+    gone.forEach(group => staffItems.delete(group.key));
+
+    ctx.showToast("Cleared.", "success");
+    refreshStaff();
+}
+
+
+async function removeReported(key) {
+
+    const group = reportGroups().find(item => item.key === key);
+
+    if (!group || !isAdmin) return;
+
+    if (!window.confirm(`Remove this ${group.spec.label.toLowerCase()} for everyone? This cannot be undone.`)) return;
+
+    staffBusy.add(key);
+    refreshStaff();
+
+    try {
+        const { postId } = group;
+        const kind = group.spec.kind;
+
+        if (kind === "threads" && postId.includes(".")) {
+            const [threadId, replyId] = postId.split(".");
+            await deleteDoc(doc(ctx.db, "threads", threadId, "replies", replyId));
+        } else {
+            // A discussion's replies go first: once the thread is gone the rules can no longer check it.
+            if (kind === "threads") {
+                const replies = await getDocs(collection(ctx.db, "threads", postId, "replies"));
+                await Promise.allSettled(replies.docs.map(reply => deleteDoc(doc(ctx.db, "threads", postId, "replies", reply.id))));
+            }
+
+            await deleteDoc(doc(ctx.db, kind, postId));
+        }
+
+        await clearReportDocs(group);
+
+        // Reports on that discussion's replies are now about posts that no longer exist.
+        if (kind === "threads" && !postId.includes(".")) {
+            const orphaned = reportGroups().filter(item => item.spec === group.spec && item.postId.startsWith(postId + "."));
+            await Promise.allSettled(orphaned.map(clearReportDocs));
+            orphaned.forEach(item => staffItems.delete(item.key));
+        }
+
+        staffItems.delete(key);
+        ctx.showToast("Post removed.", "success");
+    } catch (error) {
+        console.error("Remove reported post failed:", error);
+        ctx.showToast("Could not remove it. Check that the latest rules are published.", "error");
+    } finally {
+        staffBusy.delete(key);
+        refreshStaff();
+    }
+}
+
+
+function announcementsChanged() {
+
+    // script.js listens for this and reloads the Announcements page.
+    window.dispatchEvent(new Event("campus:announcements-changed"));
+}
+
+
+function renderAnnounce() {
+
+    if (!isAdmin) return "";
+
+    let content;
+
+    if (staffNewsError) {
+        content = emptyState("fa-cloud-bolt", "Couldn't load announcements", "Check your connection. If this keeps happening, the latest Firestore rules may not be published yet.", RETRY);
+    } else if (!staffNewsLoaded) {
+        content = skeletonList("Loading announcements", 2);
+    } else if (!staffNews.length) {
+        content = emptyState("fa-bullhorn", "No announcements posted yet", "Announcements you post here appear on every student's Announcements page.", { label: "Post an announcement", cl: "news-new", icon: "fa-bullhorn" });
+    } else {
+        content = staffNews.map(item => `
+            <div class="cl-row stack">
+                <div class="cl-top">
+                    <strong>${esc(item.title || "Announcement")}</strong>
+                    ${item.tag ? `<span class="tag">${esc(item.tag)}</span>` : ""}
+                </div>
+                <p class="journal-text">${esc(clip(item.body, 400))}</p>
+                <small class="cl-muted">${esc(timeAgo(item.createdAt))} · ${esc(item.source || "Campus Office")}</small>
+                <div class="lf-actions">
+                    <button type="button" class="btn secondary compact" data-cl="news-edit" data-id="${esc(item.id)}"><i class="fa-solid fa-pen" aria-hidden="true"></i> Edit</button>
+                    <button type="button" class="btn secondary compact danger-text" data-cl="news-del" data-id="${esc(item.id)}"><i class="fa-solid fa-trash" aria-hidden="true"></i> Delete</button>
+                </div>
+            </div>`).join("");
+    }
+
+    return `
+        <div class="cl-actions">
+            <button type="button" class="btn primary" data-cl="news-new"><i class="fa-solid fa-bullhorn" aria-hidden="true"></i> Post an announcement</button>
+        </div>
+        <div class="panel">
+            <div class="panel-head"><div><p class="eyebrow">PUBLISHED</p><h3>Announcements students can see</h3></div></div>
+            ${content}
+        </div>`;
+}
+
+
+async function editAnnouncement(id) {
+
+    if (!isAdmin) return;
+
+    const existing = id ? staffNews.find(item => item.id === id) : null;
+
+    if (id && !existing) return;
+
+    const values = await askForm({
+        eyebrow: "STAFF",
+        title: existing ? "Edit announcement" : "Post an announcement",
+        submit: existing ? "Save changes" : "Post announcement",
+        fields: [
+            { name: "tag", label: "Topic", type: "select", options: NEWS_TAGS, value: existing?.tag || "Campus" },
+            { name: "title", label: "Headline", required: true, max: 100, value: existing?.title || "" },
+            { name: "body", label: "Message", type: "textarea", required: true, max: 500, value: existing?.body || "" },
+            { name: "source", label: "Posted by", max: 40, value: existing?.source || "Campus Office" }
+        ]
+    });
+
+    if (!values) return;
+
+    const fields = {
+        tag: String(values.tag || "Campus").slice(0, 30),
+        title: values.title.trim().slice(0, 100),
+        body: values.body.trim().slice(0, 500),
+        source: (values.source || "Campus Office").trim().slice(0, 40)
+    };
+
+    if (!fields.title || !fields.body) {
+        ctx.showToast("Add a headline and a message.", "error");
+        return;
+    }
+
+    try {
+        if (existing) await updateDoc(doc(ctx.db, "announcements", existing.id), fields);
+        else await setDoc(doc(collection(ctx.db, "announcements")), { ...fields, createdAt: serverTimestamp() });
+
+        announcementsChanged();
+        ctx.showToast(existing ? "Announcement updated." : "Announcement posted. Students see it on their Announcements page.", "success");
+    } catch (error) {
+        console.error("Announcement save failed:", error);
+        ctx.showToast("Could not save it. Check that the latest rules are published.", "error");
+    }
+}
+
+
+async function deleteAnnouncement(id) {
+
+    if (!isAdmin || !staffNews.some(item => item.id === id)) return;
+
+    if (!window.confirm("Delete this announcement for everyone?")) return;
+
+    try {
+        await deleteDoc(doc(ctx.db, "announcements", id));
+        announcementsChanged();
+        ctx.showToast("Announcement deleted.", "success");
+    } catch (error) {
+        console.error(error);
+        ctx.showToast("Could not delete it.", "error");
+    }
+}
+
+
+/* =====================================================
    SUPPORT: MENTAL WELLBEING
    ===================================================== */
 
@@ -3511,6 +3983,14 @@ function stopLive() {
     menus = {};
     menuLoaded = false;
     isAdmin = false;
+    staffReports = {};
+    staffLoaded = {};
+    staffErrors = {};
+    staffItems.clear();
+    staffBusy.clear();
+    staffNews = [];
+    staffNewsLoaded = false;
+    staffNewsError = false;
 }
 
 
@@ -3626,7 +4106,9 @@ function startLive(user) {
     getDoc(doc(ctx.db, "admins", user.uid))
         .then(snapshot => {
             isAdmin = snapshot.exists();
+            if (isAdmin) startStaffListeners();
             if (["cafeteria", "resources", "tutors", "discuss"].includes(activeTab)) renderAll();
+            else renderTabs();
         })
         .catch(() => { isAdmin = false; });
 }
@@ -3646,6 +4128,8 @@ const RENDERERS = {
     resources: renderResources,
     tutors: renderTutors,
     discuss: renderDiscuss,
+    reports: renderReports,
+    announce: renderAnnounce,
     services: renderServices,
     wellness: renderWellness,
     events: renderEvents,
@@ -3673,11 +4157,15 @@ function renderTabs() {
 
     lastTabInSection[section.id] = activeTab;
 
+    const sections = SECTIONS.filter(item => !item.staffOnly || isAdmin);
+    const openReports = isAdmin ? reportGroups().length : 0;
+    const badge = count => count ? `<b class="cl-count" aria-hidden="true">${count > 99 ? "99+" : count}</b><span class="sr-only">${count} open</span>` : "";
+
     bar.innerHTML = `
-        <div class="cl-sections" role="group" aria-label="Campus Life sections">
-            ${SECTIONS.map(item => `
+        <div class="cl-sections" role="group" aria-label="Campus Life sections" style="--sections:${sections.length}">
+            ${sections.map(item => `
             <button type="button" class="cl-section ${item.id === section.id ? "active" : ""}" data-cl-section="${item.id}" aria-pressed="${item.id === section.id}">
-                <i class="fa-solid ${item.icon}" aria-hidden="true"></i><span>${item.label}</span>
+                <i class="fa-solid ${item.icon}" aria-hidden="true"></i><span>${item.label}</span>${item.staffOnly ? badge(openReports) : ""}
             </button>`).join("")}
         </div>
         <div class="cl-subtabs" role="tablist" aria-label="${section.label} pages">
@@ -3685,7 +4173,7 @@ function renderTabs() {
                 const tab = TABS.find(item => item.id === id);
                 return `
             <button type="button" class="cl-tab ${id === activeTab ? "active" : ""}" data-cl-tab="${id}" role="tab" id="cl-tab-${id}" aria-selected="${id === activeTab}" aria-controls="clBody" tabindex="${id === activeTab ? 0 : -1}">
-                <i class="fa-solid ${tab.icon}" aria-hidden="true"></i><span>${tab.label}</span>
+                <i class="fa-solid ${tab.icon}" aria-hidden="true"></i><span>${tab.label}</span>${id === "reports" ? badge(openReports) : ""}
             </button>`;
             }).join("")}
         </div>`;
@@ -3702,6 +4190,9 @@ function renderTabs() {
 function renderAll() {
 
     if (!ctx) return;
+
+    // A saved staff page is only honoured once the account is confirmed as staff.
+    if (!isAdmin && STAFF_TABS.has(activeTab)) activeTab = "attendance";
 
     renderTabs();
 
@@ -3723,6 +4214,8 @@ function renderAll() {
 function setTab(tab) {
 
     if (!RENDERERS[tab]) return;
+
+    if (STAFF_TABS.has(tab) && !isAdmin) return;
 
     if (tab !== activeTab) stopBreathing();
 
@@ -3758,6 +4251,12 @@ function handleAction(button) {
         }
         case "log-past": logPastClass(); break;
         case "del": remove(sub, id); break;
+        case "report-remove": removeReported(id); break;
+        case "report-dismiss": dismissReports(id); break;
+        case "report-clear-gone": clearGoneReports(); break;
+        case "news-new": editAnnouncement(); break;
+        case "news-edit": editAnnouncement(id); break;
+        case "news-del": deleteAnnouncement(id); break;
         case "reload": location.reload(); break;
         case "go-schedule": ctx.navigateTo("schedule"); break;
         case "res-clear": resSearch = ""; resCourse = ""; resKind = ""; renderAll(); break;

@@ -58,7 +58,7 @@ users/{uid}/notes/{noteId}
 users/{uid}/focus/{yyyy-mm-dd}
 users/{uid}/settings/preferences
 users/{uid}/{attendance|exams|loans|expenses|bills|budget|contacts|links|places|shuttle|wellness|events|journal}/{id}
-announcements/{id}        (read-only for signed-in users)
+announcements/{id}        (read for signed-in users; staff create, edit, delete)
 lostfound/{postId}        (shared; only the author can edit or delete)
 lfreports/{postId_uid}    (write-only for students; staff review in the console)
 resources/{id}            (shared resource library; voters = list of uids)
@@ -93,7 +93,7 @@ The Firebase web API key in `script.js` is a client-side Firebase configuration 
 
 ## Announcements
 
-Real announcements are read from a top-level `announcements` collection (read-only for signed-in students).
+Real announcements are read from a top-level `announcements` collection (read-only for students; staff post them in the app).
 Add documents in the Firebase Console with these fields:
 
 | field | type | example |
@@ -207,3 +207,12 @@ Course Q&A: students ask questions, others reply, and the asker can mark a quest
 ## Licence
 
 Released under the [MIT License](LICENSE).
+
+## Staff section (moderation and announcements)
+
+Accounts with a document in `admins/{uid}` (added in the Firebase Console only) see a **Staff** section in Campus Life with two pages:
+
+- **Reports:** every report filed on Lost & Found, resources, tutor listings and discussions, grouped per post with the most-reported first. Staff can preview the post, **Remove** it (a discussion's replies are deleted with it) or **Dismiss** the reports and keep it. Reports on posts that no longer exist can be cleared in one tap.
+- **Announcements:** post, edit and delete announcements; students see changes on their Announcements page.
+
+Staff approval itself stays in the console on purpose: no rule lets an app account create admins. **Republish `firestore.rules` after updating.**

@@ -3477,14 +3477,18 @@ async function saveAssignmentEdit(changes) {
 
 /* ---------- announcements (read-only, published from the Firebase console) ---------- */
 
-async function loadAnnouncements() {
+async function loadAnnouncements(afterStaffChange = false) {
 
     try {
         const snapshot = await getDocs(
             query(collection(db, "announcements"), orderBy("createdAt", "desc"))
         );
 
-        if (snapshot.empty) return;
+        if (snapshot.empty) {
+            // Staff deleted the last one: show an empty page, not the one that was just removed.
+            if (afterStaffChange) renderAnnouncements([]);
+            return;
+        }
 
         const items = snapshot.docs.slice(0, 20).map(item => item.data());
 
@@ -3495,6 +3499,10 @@ async function loadAnnouncements() {
         console.info("Using built-in announcements:", error?.code || error);
     }
 }
+
+
+// Staff post, edit and delete announcements from Campus Life > Staff (campus.js).
+window.addEventListener("campus:announcements-changed", () => loadAnnouncements(true));
 
 
 function announcementAge(createdAt) {
@@ -3517,7 +3525,9 @@ function renderAnnouncements(items) {
 
     const list = document.querySelector("#announcementsPage .announcement-list");
 
-    if (list) {
+    if (list && !items.length) {
+        list.innerHTML = `<div class="empty-state"><i class="fa-solid fa-bullhorn" aria-hidden="true"></i><h3>No announcements yet</h3><p>Updates from your campus will appear here.</p></div>`;
+    } else if (list) {
         const icons = ["", "blue", "green"];
 
         list.innerHTML = items.map((item, index) => `
